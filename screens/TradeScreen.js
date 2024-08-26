@@ -10,6 +10,7 @@ import {
   Button,
   Modal
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 
 const Dropdown = ({
   label,
@@ -175,6 +176,7 @@ const TradeScreen = ({ route }) => {
   };
 
   return (
+    <ScrollView style={{flex: 1, backgroundColor: '#181c28'}}>
     <View style={{backgroundColor: '#181c28', flex: 1, alignItems: 'center'}}>
       <Dropdown
         label="Select a Team"
@@ -283,6 +285,7 @@ const TradeScreen = ({ route }) => {
         </View>
       </Modal>
     </View>
+    </ScrollView>
   );
 };
 

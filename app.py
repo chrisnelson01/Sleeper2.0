@@ -1,10 +1,8 @@
 import logging
 import time
-import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-import requests
 import asyncio
 from aiohttp import ClientSession
 
@@ -92,33 +90,32 @@ async def get_data_async(league_id, user_id):
     try:
         start_time = time.time()
 
-        # Fetch the previous season's league ID
+        # Fetch the previous season's league ID, but continue if no previous league is found
         previous_league_id = await get_previous_season_league_id(user_id)
 
-        if not previous_league_id:
-            return jsonify({"error": "No previous league found for this user in the previous season"}), 404
-
-        # Fetch rosters, users, and drafts from both current and previous leagues
-        response, users, current_drafts, previous_drafts = await asyncio.gather(
+        # Fetch rosters, users, and drafts from the current league
+        response, users, current_drafts = await asyncio.gather(
             fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/rosters"),
             fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/users"),
-            fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/drafts"),
-            fetch_data(f"https://api.sleeper.app/v1/league/{previous_league_id}/drafts")
+            fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/drafts")
         )
 
-        if not previous_drafts or not current_drafts:
-            return jsonify({"error": "No drafts found for one of the leagues"}), 404
+        # If previous season league is found, fetch previous draft data
+        if previous_league_id:
+            previous_drafts = await fetch_data(f"https://api.sleeper.app/v1/league/{previous_league_id}/drafts")
+            if previous_drafts:
+                previous_draft_id = previous_drafts[0]['draft_id']
+                previous_draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{previous_draft_id}/picks")
+            else:
+                previous_draft_data = []
+        else:
+            previous_draft_data = []
 
-        # Fetch draft data for both current and previous leagues
+        # Fetch current draft data
         current_draft_id = current_drafts[0]['draft_id']
-        previous_draft_id = previous_drafts[0]['draft_id']
+        current_draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{current_draft_id}/picks")
 
-        current_draft_data, previous_draft_data = await asyncio.gather(
-            fetch_data(f"https://api.sleeper.app/v1/draft/{current_draft_id}/picks"),
-            fetch_data(f"https://api.sleeper.app/v1/draft/{previous_draft_id}/picks")
-        )
-
-        # Merge the current and previous draft data
+        # Merge the current and previous draft data (if previous draft data exists)
         merged_draft_data = merge_draft_data(current_draft_data, previous_draft_data)
 
         logging.info(f"Time taken for API calls: {time.time() - start_time} seconds")
@@ -156,10 +153,14 @@ async def get_data_async(league_id, user_id):
                     (draft_pick for draft_pick in filtered_player_data if draft_pick['player_id'] == player), None)
 
                 if player_info:
-                    # Get the contract length from the database
+                    # Get the contract length from the database or use 1-year default if no contract found
                     contract_length = get_contract_data(league_id, player)
+                    
+                    # Try fetching from the previous league if no contract found for the current league
+                    if contract_length == 1 and previous_league_id:
+                        contract_length = get_contract_data(previous_league_id, player)
 
-                    # Assign the contract length from the database
+                    # Assign the contract length
                     player_info['contract'] = str(contract_length)
 
                     # Add player amount to total
@@ -201,16 +202,13 @@ async def get_data_async(league_id, user_id):
         logging.error("Error:", e)
         return jsonify({"error": str(e)}), 500
 
-
 # Fetch rules from the database for a league
 @app.route('/api/rules/<league_id>')
 def get_rules(league_id):
     rules = Rule.query.filter_by(league_id=league_id).all()
     if not rules:
-        return jsonify({"error": "No rules found for this league"}), 404
-    
+        return jsonify([]), 200  # Return an empty list if no rules found
     return jsonify([{"rule_id": rule.rule_id, "rule_text": rule.rule_text} for rule in rules])
-
 
 # Define the API endpoint for roster data
 @app.route('/api/rosters/<league_id>/<user_id>')
@@ -222,14 +220,12 @@ def get_data_route(league_id, user_id):
 def add_or_update_contract():
     try:
         data = request.get_json()
-        print(data)
-        # Get league_id, player_id, and contract_length from the request body
         league_id = data.get('league_id')
         player_id = data.get('player_id')
         contract_length = data.get('contract_length')
 
         if not league_id or not player_id or not contract_length:
-            return jsonify({'error': 'Missing league_id, player_id or contract_length'}), 400
+            return jsonify({'error': 'Missing league_id, player_id, or contract_length'}), 400
 
         # Check if contract exists
         contract = Contract.query.filter_by(league_id=league_id, player_id=player_id).first()
@@ -270,7 +266,11 @@ def get_contracts(league_id):
                 'contract_length': contract.contract_length
             }), 200
         else:
-            return jsonify({'error': 'Contract not found for the specified player'}), 404
+            return jsonify({
+                'league_id': league_id,
+                'player_id': player_id,
+                'contract_length': 1  # Return default contract if not found
+            }), 200
     else:
         # Fetch all contracts for the league
         contracts = Contract.query.filter_by(league_id=league_id).all()
@@ -283,7 +283,7 @@ def get_contracts(league_id):
                 } for contract in contracts
             ]), 200
         else:
-            return jsonify({'error': 'No contracts found for this league'}), 404
-        
+            return jsonify([]), 200  # Return an empty list if no contracts found
+
 if __name__ == '__main__':
     app.run(debug=True)
