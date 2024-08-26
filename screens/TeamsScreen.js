@@ -1,64 +1,102 @@
-import React, { useState } from 'react';
-import { ScrollView, Text, FlatList, TouchableOpacity, View, StyleSheet, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, Text, FlatList, TouchableOpacity, View, StyleSheet, Image, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Font from 'expo-font';
 
 const TeamsScreen = ({ route }) => {
   const { data } = route.params;
-
   const [expandedTeam, setExpandedTeam] = useState(null);
+  const [playerBoxWidth, setPlayerBoxWidth] = useState(0);
 
-  // Toggle expansion state for a team
+  useEffect(() => {
+    const updatePlayerBoxWidth = () => {
+      const screenWidth = Dimensions.get('window').width;
+      const playersPerRow = 4;
+      const padding = 5;
+      const containerWidth = screenWidth - 2 * padding;
+      const calculatedWidth = containerWidth / playersPerRow;
+      setPlayerBoxWidth(calculatedWidth);
+    };
+
+    // Initial setup
+    updatePlayerBoxWidth();
+
+    // Update width when the window size changes
+    Dimensions.addEventListener('change', updatePlayerBoxWidth);
+
+    // Cleanup listener when the component is unmounted
+    return () => {
+      Dimensions.removeEventListener('change', updatePlayerBoxWidth);
+    };
+  }, []);
+
   const toggleTeamExpansion = (teamId) => {
     setExpandedTeam((prevTeam) => (prevTeam === teamId ? null : teamId));
   };
 
-  // Render a team with expandable players
-  const renderTeam = ({ item: team }) => (
-    <View style={styles.teamContainer}>
-      <TouchableOpacity
-        onPress={() => toggleTeamExpansion(team.owner_id)}
-        style={styles.teamHeader}
-      >
-        <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>{team.display_name}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center'}}>
-        <Text style={{ color: 'white' , marginRight: 10}}>{`$${team.total_amount}`}</Text>
-        <Ionicons
-          name={expandedTeam === team.owner_id ? 'chevron-up-outline' : 'chevron-down-outline'}
-          size={24}
-          color="white"
-        />
-        </View>
-      </TouchableOpacity>
-      {expandedTeam === team.owner_id && (
-        <View style={styles.playersContainer}>
-          {team.players.map((player) => (
-            <TouchableOpacity
-              key={player.player_id}
-              onPress={() => {
-                // Handle press action
-                console.log(`${player.first_name} ${player.last_name} pressed`);
-              }}
-              style={[
-                styles.playerBox,
-                {
-                  backgroundColor:
-                    player.contract === '3' ? '#626e42' : // Adjust color for 3-year contract
-                    player.contract === '2' ? '#4a5f82' : '#293142', // Adjust color for 2-year contract
-                },
-              ]}
-            >
+  const renderTeam = ({ item: team }) => {
+    // Construct avatar URL using the avatar hash
+    const avatarUrl = team.avatar
+      ? `https://sleepercdn.com/avatars/thumbs/${team.avatar}`
+      : null; // Fallback if no avatar is present
+
+    return (
+      <View style={styles.teamContainer}>
+        <TouchableOpacity
+          onPress={() => toggleTeamExpansion(team.owner_id)}
+          style={styles.teamHeader}
+        >
+          <View style={styles.teamInfo}>
+            {avatarUrl && (
               <Image
-                source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
-                style={styles.playerImage}
+                source={{ uri: avatarUrl }}
+                style={styles.avatarImage}
               />
-              <Text numberOfLines={1} style={{ justifyContent: 'center', color: 'white' }}>{`${player.first_name} ${player.last_name}`}</Text>
-              <Text style={{ justifyContent: 'center', color: 'white' }}>{`$${player.amount}`}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  );
+            )}
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>{team.display_name}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center'}}>
+            <Text style={{ color: 'white' , marginRight: 10}}>{`$${team.total_amount}`}</Text>
+            <Ionicons
+              name={expandedTeam === team.owner_id ? 'chevron-up-outline' : 'chevron-down-outline'}
+              size={24}
+              color="white"
+              style={{marginRight: 5}}
+            />
+          </View>
+        </TouchableOpacity>
+        {expandedTeam === team.owner_id && (
+          <View style={styles.playersContainer}>
+            {team.players.map((player) => (
+              <TouchableOpacity
+                key={player.player_id}
+                onPress={() => {
+                  console.log(`${player.first_name} ${player.last_name} pressed`);
+                }}
+                style={[
+                  styles.playerBox,
+                  {
+                    backgroundColor:
+                      player.contract === '3' ? '#626e42' :
+                      player.contract === '2' ? '#4a5f82' : '#293142',
+                  },
+                ]}
+              >
+                <Image
+                  source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
+                  style={styles.playerImage}
+                />
+                <View style={styles.playerInfo}>
+                    <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
+                    <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <FlatList
@@ -80,31 +118,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'white',
     marginVertical: 5,
-    padding: 10,
-    borderRadius: 10, // Rounded corners for teams
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+    borderRadius: 10,
   },
   teamHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginLeft: 10,
+  },
+  teamInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
   },
   playersContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap', // Adjust as needed
+    flexDirection: 'column',
+    flexWrap: 'wrap',
   },
   playerBox: {
-    flexBasis: '100px', // Adjust as needed
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     textAlign: 'center',
-    padding: 2,
+    padding: 1,
     margin: 1,
-    borderRadius: 8, // Rounded corners for players
+    borderRadius: 8,
   },
   playerImage: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    marginBottom: 5,
+    margin: 5,
+  },
+  playerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1, // Allows the player name and amount to take up available space
+  },
+  playerName: {
+    marginLeft: 10,
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '500'
+  },
+  playerAmount: {
+    color: 'white',
+    alignContent: 'flex-end',
+    marginRight: 30
   },
 });
 

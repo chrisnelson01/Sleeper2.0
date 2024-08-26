@@ -10,23 +10,33 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~3.2.3",
+    "@react-native-async-storage/async-storage": "^2.0.0",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "@react-navigation/drawer": "^6.7.2",
     "@react-navigation/native": "^6.1.9",
     "@react-navigation/stack": "^6.3.20",
-    "expo": "~49.0.15",
-    "expo-status-bar": "~1.6.0",
+    "@tanstack/react-query": "^5.52.1",
+    "@tanstack/react-query-devtools": "^5.52.1",
+    "@types/react": "^18.3.4",
+    "expo": "^51.0.31",
+    "expo-status-bar": "~1.12.1",
     "flask": "^0.2.10",
     "flask-cors": "^0.0.1",
     "react": "18.2.0",
     "react-dom": "^18.2.0",
-    "react-native": "0.72.6",
+    "react-native": "0.74.5",
     "react-native-chart-kit": "^6.12.0",
-    "react-native-reanimated": "^3.3.0",
-    "react-native-web": "^0.19.9",
+    "react-native-eject": "^0.2.0",
+    "react-native-gesture-handler": "^2.18.1",
+    "react-native-reanimated": "~3.10.1",
+    "react-native-web": "~0.19.10",
     "react-spring": "^9.7.3",
-    "requests": "^0.3.0"
+    "requests": "^0.3.0",
+    "sql.js": "^1.11.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.24.0"
   },
   "private": true
 }
