@@ -11,7 +11,7 @@ const RulesScreen = ({ route }) => {
   useEffect(() => {
     const fetchRules = async () => {
       try {
-        const response = await fetch(`http://127.0.0.1:5000/api/rules/${leagueId}`);
+        const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rules/${leagueId}`);
         const data = await response.json();
 
         if (response.ok) {
