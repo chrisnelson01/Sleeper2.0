@@ -81,7 +81,7 @@ function App() {
   // Function to fetch contracts
   const fetchContracts = async (leagueId) => {
     try {
-      const response = await fetch(`https://chrisnel01.pythonanywhere.com//api/contracts/${leagueId}`);
+      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/contracts/${leagueId}`);
       const jsonData = await response.json();
       setContracts(jsonData);
     } catch (error) {
