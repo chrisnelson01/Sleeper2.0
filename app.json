@@ -6,10 +6,10 @@
     "slug": "Sleeper",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/football.jpg",
+    "icon": "./assets/football_logo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/football.jpg",
+      "image": "./assets/football_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -21,12 +21,12 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/football.jpg",
+        "foregroundImage": "./assets/football_logo.png",
         "backgroundColor": "#ffffff"
       }
     },
     "web": {
-      "favicon": "./assets/football.jpg"
+      "favicon": "./assets/football_logo.png"
     }
   }
 }
