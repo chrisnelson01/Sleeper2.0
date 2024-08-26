@@ -174,7 +174,8 @@ const styles = StyleSheet.create({
     width: '85%',
     height: '85%',
     backgroundColor: '#293142',
-    padding: 20,
+    padding: 10,
+    paddingHorizontal: 7,
     borderRadius: 10,
     alignItems: 'center',
   },
@@ -190,8 +191,8 @@ const styles = StyleSheet.create({
   ruleContainer: {
     backgroundColor: '#293142',
     marginBottom: 10,
-    padding: 15,
-    borderRadius: 8,
+    padding: 1,
+    borderRadius: 1,
   },
   ruleText: {
     color: 'white',

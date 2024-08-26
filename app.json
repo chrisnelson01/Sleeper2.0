@@ -26,7 +26,18 @@
       }
     },
     "web": {
-      "favicon": "./assets/football_logo.png"
+      "favicon": "./assets/football_logo.png",
+      "themeColor": "#ffffff",  
+      "meta": {
+        "apple": {
+          "webAppCapable": "yes",
+          "webAppTitle": "Sleeper",
+          "webAppStatusBarStyle": "default",
+          "appleMobileWebAppTitle": "Sleeper",
+          "appleMobileWebAppCapable": "yes",
+          "appleMobileWebAppStatusBarStyle": "black-translucent"
+        }
+      }
     }
   }
 }
