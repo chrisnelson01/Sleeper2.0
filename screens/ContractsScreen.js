@@ -136,7 +136,6 @@ const ContractsScreen = ({ route, navigation }) => {
       {/* Modal for Success Message */}
       <Modal
         transparent={true}
-        animationType="slide"
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}  // Close modal on back button press
       >

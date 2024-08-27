@@ -1,9 +1,9 @@
 {
   "name": "Sleeper2.0",
-  "displayName": "Sleeper",
+  "displayName": "Sleeper2.0",
   "expo": {
-    "name": "Sleeper",
-    "slug": "Sleeper",
+    "name": "Sleeper2.0",
+    "slug": "Sleeper2.0",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/football_logo.png",
@@ -17,7 +17,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "icon": "./assets/football_logo.png"  
     },
     "android": {
       "adaptiveIcon": {
@@ -26,17 +27,31 @@
       }
     },
     "web": {
-      "favicon": "./assets/football_logo.png",
+      "favicon": "./assets/football_logo.png",  
       "themeColor": "#ffffff",  
       "meta": {
         "apple": {
-          "webAppCapable": "yes",
-          "webAppTitle": "Sleeper",
-          "webAppStatusBarStyle": "default",
-          "appleMobileWebAppTitle": "Sleeper",
-          "appleMobileWebAppCapable": "yes",
-          "appleMobileWebAppStatusBarStyle": "black-translucent"
-        }
+          "webAppCapable": "yes",  
+          "webAppTitle": "Sleeper2.0",  
+          "webAppStatusBarStyle": "default",  
+          "appleMobileWebAppTitle": "Sleeper2.0",  
+          "appleMobileWebAppCapable": "yes",  
+          "appleMobileWebAppStatusBarStyle": "black-translucent"  
+        },
+        "appIcons": [
+          {
+            "sizes": "120x120",
+            "src": "./assets/football_logo_120.png"  
+          },
+          {
+            "sizes": "180x180",
+            "src": "./assets/football_logo_180.png"  
+          },
+          {
+            "sizes": "192x192",
+            "src": "./assets/football_logo_192.png"  
+          }
+        ]
       }
     }
   }

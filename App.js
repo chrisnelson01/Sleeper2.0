@@ -179,9 +179,10 @@ function App() {
             <Stack.Navigator
               screenOptions={{
                 header: (props) => <NavBar {...props} />,
+                title: "Sleeper2.0"
               }}
             >
-              <Stack.Screen name="MyTeam" component={MyTeamScreen} initialParams={{ team: myTeam }} />
+              <Stack.Screen name="MyTeam" component={MyTeamScreen} initialParams={{ team: myTeam, leagueId: selectedLeagueId, fetchLeagueData}} />
               <Stack.Screen name="Teams" component={TeamsScreen} initialParams={{ data }} />
               <Stack.Screen name="Future" component={FutureScreen} initialParams={{ data }} />
               <Stack.Screen name="Trade" component={TradeScreen} initialParams={{ playerData }} />

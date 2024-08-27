@@ -56,7 +56,16 @@ const TeamsScreen = ({ route }) => {
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>{team.display_name}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center'}}>
-            <Text style={{ color: 'white' , marginRight: 10}}>{`$${team.total_amount}`}</Text>
+            {team.rfa_left > 0 && (
+              <Ionicons name="ribbon-outline" size={18} color="#fff" style={styles.iconOffset} /> // RFA Icon
+            )}
+            {team.extension_left > 0 && (
+              <Ionicons name="add-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Extension Icon
+            )}
+            {team.amnesty_left > 0 && (
+              <Ionicons name="close-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Amnesty Icon
+            )}
+            <Text style={{ color: 'white' , marginRight: 10}}>{`   $${team.total_amount}`}</Text>
             <Ionicons
               name={expandedTeam === team.owner_id ? 'chevron-up-outline' : 'chevron-down-outline'}
               size={24}
@@ -77,8 +86,7 @@ const TeamsScreen = ({ route }) => {
                   styles.playerBox,
                   {
                     backgroundColor:
-                      player.contract === '3' ? '#626e42' :
-                      player.contract === '2' ? '#4a5f82' : '#293142',
+                      player.contract >>> 0 ? '#395585' : '#293142',
                   },
                 ]}
               >
@@ -88,7 +96,42 @@ const TeamsScreen = ({ route }) => {
                 />
                 <View style={styles.playerInfo}>
                     <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
-                    <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
+                    <View style={styles.row}>
+                        {player.contract !== 0 && (
+                          <View style={styles.row}>
+                            <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
+                            <Text style={{color: 'white'}}>
+                              {`${player.contract}  `}
+                            </Text>
+                          </View>
+                        )}
+
+                        {player.extension_contract_length && (
+                          <View style={styles.row}>
+                            <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
+                            <Text style={{color: 'white'}}>
+                              {`${player.extension_contract_length}  `}
+                            </Text>
+                          </View>
+                        )}
+
+                        {player.rfa_contract_length && (
+                          <View style={styles.row}>
+                            <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
+                            <Text style={{color: 'white'}}>
+                              {`${player.rfa_contract_length}  `}
+                            </Text>
+                          </View>
+                        )}
+
+                        {player.amnesty && (
+                          <View style={styles.row}>
+                            <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
+                          </View>
+                        )}
+
+                        <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
+                    </View>
                 </View>
               </TouchableOpacity>
             ))}
@@ -172,7 +215,16 @@ const styles = StyleSheet.create({
   playerAmount: {
     color: 'white',
     alignContent: 'flex-end',
-    marginRight: 30
+    marginRight: 15
+  },
+  row: {
+    flexDirection: 'row',
+    alignContent: 'flex-end', // Aligns items horizontally
+    // Vertically centers items
+  },
+  iconOffset: {
+    marginLeft: 5, // Adds space between the icon and text
+    paddingTop: 2, // Nudges the icon down slightly to align with text
   },
 });
 
