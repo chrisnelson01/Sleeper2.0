@@ -108,36 +108,41 @@ const confirmAction = async () => {
             style={styles.playerImage}
           />
           <View style={styles.playerInfo}>
-            <Text style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
-            <View style={styles.row}> {/* Aligning items side by side */}
-              <Text style={styles.playerAmount}>
-                {`$${player.amount}`}
-              </Text>
-              {player.contract !== 0 && (
-                <View style={styles.row}> {/* Wrapping contract info */}
-                  <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                  <Text style={styles.playerAmount}>{` ${player.contract} `}</Text>
-                </View>
-              )}
-              {player.extension_contract_length && (
-                <View style={styles.row}> {/* Wrapping extension info */}
-                  <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
-                  <Text style={styles.playerAmount}>{` ${player.extension_contract_length} `}</Text>
-                </View>
-              )}
-              {player.rfa_contract_length && (
-                <View style={styles.row}> {/* Wrapping RFA info */}
-                  <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
-                  <Text style={styles.playerAmount}>{` ${player.rfa_contract_length} `}</Text>
-                </View>
-              )}
-              {player.amnesty && (
-                <View style={styles.row}> {/* Wrapping amnesty info */}
-                  <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
-                </View>
-              )}
-            </View>
+          <Text style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
+          <View style={styles.row}> {/* Aligning items side by side */}
+            <Text style={styles.playerAmount}>
+              {`$${player.amount}`}
+            </Text>
+            {player.contract !== 0 && (
+              <View style={styles.row}> {/* Wrapping contract info */}
+                <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
+                <Text style={styles.playerAmount}>{` ${player.contract} `}</Text>
+              </View>
+            )}
+            {player.extension_contract_length && (
+              <View style={styles.row}> {/* Wrapping extension info */}
+                <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
+                <Text style={styles.playerAmount}>{` ${player.extension_contract_length} `}</Text>
+              </View>
+            )}
+            {player.rfa_contract_length && (
+              <View style={styles.row}> {/* Wrapping RFA info */}
+                <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
+                <Text style={styles.playerAmount}>{` ${player.rfa_contract_length} `}</Text>
+              </View>
+            )}
+            {player.amnesty && (
+              <View style={styles.row}> {/* Wrapping amnesty info */}
+                <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
+              </View>
+            )}
+            {player.taxi && (
+              <View style={styles.row}> {/* Wrapping taxi info */}
+                <Ionicons name="car-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
+              </View>
+            )}
           </View>
+        </View>
         </TouchableOpacity>
       ))}
 
