@@ -2,11 +2,13 @@ import logging
 import time
 import asyncio
 from flask import Blueprint, jsonify, request
-from utils import fetch_data, get_amnesty_rfa_extension_data, get_waiver_data_async, get_previous_season_league_id, load_local_players_data, merge_draft_data
+from utils import calculate_years_remaining_from_creation, fetch_data, get_amnesty_rfa_extension_data, get_league_info, get_waiver_data_async, get_previous_season_league_id, load_local_players_data, merge_draft_data
 from models import *
 from extensions import db  # Assuming 'db' is from an 'extensions' module where SQLAlchemy is initialized
 
 api = Blueprint('api', __name__)
+
+logging.basicConfig(level=logging.INFO)
 
 @api.route('/api/rosters/<league_id>/<user_id>')
 async def get_data_route(league_id, user_id):
@@ -15,6 +17,8 @@ async def get_data_route(league_id, user_id):
 
         # Fetch previous season league id
         previous_league_id = await get_previous_season_league_id(user_id)
+        
+        league_info = get_league_info(league_id)
         
         # Fetch relevant data concurrently
         response, users, current_drafts = await asyncio.gather(
@@ -43,8 +47,23 @@ async def get_data_route(league_id, user_id):
             local_player_data = {str(player['player_id']): player for player in local_player_data}
 
         # Initialize filtered_rosters list to hold the processed data
-        filtered_rosters = []
-
+        league_info_list = {}
+        roster_info = []
+        if league_info:
+            league_info_list = {
+                                     "is_auction" : league_info['is_auction'],
+                                     "is_keeper" : league_info['is_keeper'],
+                                     "is_auction" : league_info['is_auction'],
+                                     "money_per_team" : league_info['money_per_team'],
+                                     "keepers_allowed" : league_info['keepers_allowed'],
+                                     "rfa_allowed" : league_info['rfa_allowed'],
+                                     "amnesty_allowed" : league_info['amnesty_allowed'],
+                                     "extension_allowed" : league_info['extension_allowed'],
+                                     "extension_length" : league_info['extension_length'],
+                                     "rfa_length" : league_info['rfa_length'],
+                                     "taxi_length" : league_info['taxi_length'],
+                                     "rollover_every" : league_info['rollover_every']
+                                     }
         # Fetch amnesty, RFA, and extension limits using SQLAlchemy ORM
         amnesty_data = AmnestyTeam.query.filter_by(league_id=league_id).all()
         rfa_data = RfaTeam.query.filter_by(league_id=league_id).all()
@@ -66,11 +85,12 @@ async def get_data_route(league_id, user_id):
             players_list = entry['players']
             owner_id = entry['owner_id']
             roster_id = entry['roster_id']
-
+            taxi_list = entry['taxi']
             # Get user details
             owner_data = next((owner for owner in users if owner['user_id'] == owner_id), None)
             display_name = owner_data['display_name'] if owner_data else ""
             avatar_id = owner_data['avatar'] if owner_data and 'avatar' in owner_data else None
+            is_owner = True if owner_data['is_owner'] else False
 
             players_with_id_and_amount = []
             total_amount = 0
@@ -82,7 +102,7 @@ async def get_data_route(league_id, user_id):
                 if player_info:
                     # Get the contract length from the database or use 1-year default if no contract found
                     contract_length = Contract.query.filter_by(league_id=league_id, player_id=player).first()
-                    player_info['contract'] = contract_length.contract_length if contract_length else 0
+                    player_info['contract'] = calculate_years_remaining_from_creation(league_info['creation_date'],contract_length.contract_length) if contract_length else 0
 
                     # Add player amount to total
                     total_amount += int(player_info['amount'])
@@ -107,10 +127,17 @@ async def get_data_route(league_id, user_id):
                                 total_amount += 1
                                 players_with_id_and_amount.append(player_with_default)
                                 break
+            if taxi_list:
+                for player_info in players_with_id_and_amount:
+                    if player_info['player_id'] in taxi_list:
+                        player_info['contract'] = calculate_years_remaining_from_creation(league_info['creation_date'], league_info_list['taxi_length'])
+                        player_info['taxi'] = True
+
             players_with_id_and_amount = get_amnesty_rfa_extension_data(players_with_id_and_amount, league_id)
             # Add amnesty, RFA, and extension counts to the roster data
-            filtered_rosters.append({
+            roster_info.append({
                 'owner_id': owner_id,
+                'is_owner' : is_owner,
                 'display_name': display_name,
                 'avatar': avatar_id,
                 'roster_id': roster_id,
@@ -122,8 +149,9 @@ async def get_data_route(league_id, user_id):
                 'extension_left': extension_dict.get(int(owner_id), 0)  # Extension count
             })
         logging.info(f"Time taken for processing data: {time.time() - start_time} seconds")
-
-        return jsonify(filtered_rosters)
+        combined = {"league_info": league_info_list,
+                         "team_info": roster_info}
+        return jsonify(combined)
 
     except Exception as e:
         logging.error(f"Error: {e}")
@@ -220,104 +248,113 @@ def get_rules(league_id):
         logging.error(f"Error fetching rules: {e}")
         return jsonify({'error': 'An error occurred while fetching the rules'}), 500
     
-@api.route('/api/amnesty', methods=['POST', 'PUT'])
+@api.route('/api/rules/<int:league_id>', methods=['PUT'])
+def update_rules(league_id):
+    try:
+        updated_rules = request.get_json()
+        if not updated_rules:
+            return jsonify({'error': 'No data provided'}), 400
+
+        for updated_rule in updated_rules:
+            rule = Rule.query.filter_by(league_id=league_id, rule_id=updated_rule['rule_id']).first()
+            if rule:
+                rule.rule_text = updated_rule['rule_text']
+            else:
+                return jsonify({'error': f"Rule ID {updated_rule['rule_id']} not found"}), 404
+
+        db.session.commit()
+        return jsonify({'message': 'Rules updated successfully'}), 200
+
+    except Exception as e:
+        logging.error(f"Error updating rules: {e}")
+        return jsonify({'error': 'An error occurred while updating the rules'}), 500
+    
+@api.route('/api/amnesty', methods=['POST', 'PUT', 'DELETE'])
 def add_or_update_amnesty():
     try:
         data = request.get_json()
         league_id = data.get('league_id')
-        player_id = data.get('player_id')  # Player ID provided if for a player
+        player_id = data.get('player_id')
         team_id = data.get('team_id')
 
         if not league_id or not team_id:
             return jsonify({'error': 'Missing league_id or team_id'}), 400
 
-        # Handle amnesty for a player
-        if player_id:
-            amnesty = AmnestyPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
-            amnesty_team = AmnestyTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
+        # Fetch the amnesty record for the player
+        amnesty = AmnestyPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
+        amnesty_team = AmnestyTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
 
-            if not amnesty_team:
-                return jsonify({'error': 'Amnesty data does not exist for team'}), 404
+        if not amnesty_team:
+            return jsonify({'error': 'Amnesty data does not exist for team'}), 404
 
+        if request.method == 'POST':
+            if amnesty:
+                return jsonify({'error': 'Amnesty already exists for player'}), 400
+            
             if amnesty_team.amnesty_left <= 0:
                 return jsonify({'error': 'No amnesty actions left for the team'}), 400
+            
+            # Add new amnesty for the player
+            new_amnesty = AmnestyPlayer(league_id=league_id, player_id=player_id)
+            db.session.add(new_amnesty)
+            
+            # Decrease the team's amnesty_left by 1
+            amnesty_team.amnesty_left -= 1
+            db.session.commit()
 
-            if request.method == 'POST':
-                if amnesty:
-                    return jsonify({'error': 'Amnesty already exists for player'}), 400
-                
-                # Add new amnesty for the player
-                new_amnesty = AmnestyPlayer(league_id=league_id, player_id=player_id)
-                db.session.add(new_amnesty)
-                
-                # Decrease the team's amnesty_left by 1
-                amnesty_team.amnesty_left -= 1
-                db.session.commit()
+            return jsonify({'message': 'Amnesty added successfully for player. Amnesty left for team decreased by 1.'}), 201
 
-                return jsonify({'message': 'Amnesty added successfully for player. Amnesty left for team decreased by 1.'}), 201
+        elif request.method == 'PUT':
+            if not amnesty:
+                return jsonify({'error': 'Amnesty does not exist for player'}), 404
+            
+            # No specific update to do for player amnesty
+            db.session.commit()
+            return jsonify({'message': 'Amnesty updated successfully for player'}), 200
 
-            if request.method == 'PUT':
-                if not amnesty:
-                    return jsonify({'error': 'Amnesty does not exist for player'}), 404
-                # No specific update to do for player amnesty
-                db.session.commit()
-                return jsonify({'message': 'Amnesty updated successfully for player'}), 200
+        elif request.method == 'DELETE':
+            if not amnesty:
+                return jsonify({'error': 'Amnesty does not exist for player'}), 404
 
-        # Handle amnesty count for a team (if no player_id is provided)
-        else:
-            amnesty_team = AmnestyTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
+            # Remove amnesty for the player
+            db.session.delete(amnesty)
 
-            if request.method == 'POST':
-                if amnesty_team:
-                    return jsonify({'error': 'Amnesty already exists for team'}), 400
-                # Set default amnesty_left value if not provided
-                amnesty_left = data.get('amnesty_left', 1)
-                new_amnesty_team = AmnestyTeam(league_id=league_id, team_id=team_id, amnesty_left=amnesty_left)
-                db.session.add(new_amnesty_team)
-                db.session.commit()
-                return jsonify({'message': 'Amnesty added successfully for team'}), 201
+            # Increase the team's amnesty_left by 1
+            amnesty_team.amnesty_left += 1
+            db.session.commit()
 
-            if request.method == 'PUT':
-                if not amnesty_team:
-                    return jsonify({'error': 'Amnesty does not exist for team'}), 404
-                # Update amnesty_left value for the team
-                amnesty_left = data.get('amnesty_left')
-                if amnesty_left is not None:
-                    amnesty_team.amnesty_left = amnesty_left
-                db.session.commit()
-                return jsonify({'message': 'Amnesty updated successfully for team'}), 200
+            return jsonify({'message': 'Amnesty removed successfully for player. Amnesty left for team increased by 1.'}), 200
 
     except Exception as e:
-        logging.error(f"Error: {e}")
-        return jsonify({'error': 'An error occurred while processing amnesty'}), 500
+        return jsonify({'error': str(e)}), 500
 
-@api.route('/api/rfa', methods=['POST', 'PUT'])
+@api.route('/api/rfa', methods=['POST', 'PUT', 'DELETE'])
 def add_or_update_rfa():
     try:
         data = request.get_json()
         league_id = data.get('league_id')
         player_id = data.get('player_id')
         team_id = data.get('team_id')
-        contract_length = data.get('contract_length')
-        if not league_id or not player_id or not team_id:
-            return jsonify({'error': 'Missing league_id, player_id, or team_id'}), 400
 
-        # Handle RFA for a player
+        if not league_id or not team_id:
+            return jsonify({'error': 'Missing league_id or team_id'}), 400
+
+        # Fetch the RFA record for the player
         rfa = RfaPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
         rfa_team = RfaTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
-
+        logging.info(rfa)
         if not rfa_team:
             return jsonify({'error': 'RFA data does not exist for team'}), 404
-
-        if rfa_team.rfa_left <= 0:
-            return jsonify({'error': 'No RFA actions left for the team'}), 400
 
         if request.method == 'POST':
             if rfa:
                 return jsonify({'error': 'RFA already exists for player'}), 400
             
+            if rfa_team.rfa_left <= 0:
+                return jsonify({'error': 'No RFA actions left for the team'}), 400
+            
             # Add new RFA for the player
-            new_rfa = RfaPlayer(league_id=league_id, player_id=player_id, contract_length=contract_length)
+            new_rfa = RfaPlayer(league_id=league_id, player_id=player_id)
             db.session.add(new_rfa)
             
             # Decrease the team's rfa_left by 1
@@ -326,63 +363,88 @@ def add_or_update_rfa():
 
             return jsonify({'message': 'RFA added successfully for player. RFA left for team decreased by 1.'}), 201
 
-        if request.method == 'PUT':
+        elif request.method == 'PUT':
             if not rfa:
                 return jsonify({'error': 'RFA does not exist for player'}), 404
-            rfa.contract_length = contract_length
+            
+            # No specific update to do for player RFA
             db.session.commit()
-        return jsonify({'message': 'RFA updated successfully for player'}), 200
+            return jsonify({'message': 'RFA updated successfully for player'}), 200
+
+        elif request.method == 'DELETE':
+            if not rfa:
+                return jsonify({'error': 'RFA does not exist for player'}), 404
+
+            # Remove RFA for the player
+            db.session.delete(rfa)
+
+            # Increase the team's rfa_left by 1
+            rfa_team.rfa_left += 1
+            db.session.commit()
+
+            return jsonify({'message': 'RFA removed successfully for player. RFA left for team increased by 1.'}), 200
 
     except Exception as e:
-        logging.error(f"Error: {e}")
-        return jsonify({'error': 'An error occurred while processing RFA'}), 500
+        return jsonify({'error': str(e)}), 500
 
-@api.route('/api/extensions', methods=['POST', 'PUT'])
+
+@api.route('/api/extension', methods=['POST', 'PUT', 'DELETE'])
 def add_or_update_extension():
     try:
         data = request.get_json()
         league_id = data.get('league_id')
-        player_id = data.get('player_id', None)
-        contract_length = data.get('contract_length')
-        team_id= data.get('team_id')
-        if not league_id:
-            return jsonify({'error': 'Missing league_id'}), 400
+        player_id = data.get('player_id')
+        team_id = data.get('team_id')
 
-        if player_id:
-            # Handle extension for a player
-            extension = ExtensionPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
-            extension_team = ExtensionTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
+        if not league_id or not team_id:
+            return jsonify({'error': 'Missing league_id or team_id'}), 400
 
-            if not extension_team:
-                return jsonify({'error': 'Extension data does not exist for team'}), 404
+        # Fetch the extension record for the player
+        extension = ExtensionPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
+        extension_team = ExtensionTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
 
+        if not extension_team:
+            return jsonify({'error': 'Extension data does not exist for team'}), 404
+
+        if request.method == 'POST':
+            if extension:
+                return jsonify({'error': 'Extension already exists for player'}), 400
+            
             if extension_team.extension_left <= 0:
                 return jsonify({'error': 'No extension actions left for the team'}), 400
+            
+            # Add new extension for the player
+            new_extension = ExtensionPlayer(league_id=league_id, player_id=player_id)
+            db.session.add(new_extension)
+            
+            # Decrease the team's extension_left by 1
+            extension_team.extension_left -= 1
+            db.session.commit()
 
-            if request.method == 'POST':
-                if extension:
-                    return jsonify({'error': 'Extension already exists for player'}), 400
-                
-                # Add new extension for the player
-                new_extension = ExtensionPlayer(league_id=league_id, player_id=player_id, contract_length=contract_length)
-                logging.info(new_extension)
-                db.session.add(new_extension)
-                
-                # Decrease the team's extension_left by 1
-                extension_team.extension_left -= 1
-                db.session.commit()
+            return jsonify({'message': 'Extension added successfully for player. Extension left for team decreased by 1.'}), 201
 
-                return jsonify({'message': 'Extension added successfully for player. Extension left for team decreased by 1.'}), 201
+        elif request.method == 'PUT':
+            if not extension:
+                return jsonify({'error': 'Extension does not exist for player'}), 404
+            
+            # No specific update to do for player extension
+            db.session.commit()
+            return jsonify({'message': 'Extension updated successfully for player'}), 200
 
-            if request.method == 'PUT':
-                if not extension:
-                    return jsonify({'error': 'Extension does not exist for player'}), 404
-                # No specific update to do for player extension
-                db.session.commit()
-                return jsonify({'message': 'Extension updated successfully for player'}), 200
+        elif request.method == 'DELETE':
+            if not extension:
+                return jsonify({'error': 'Extension does not exist for player'}), 404
+
+            # Remove extension for the player
+            db.session.delete(extension)
+
+            # Increase the team's extension_left by 1
+            extension_team.extension_left += 1
+            db.session.commit()
+
+            return jsonify({'message': 'Extension removed successfully for player. Extension left for team increased by 1.'}), 200
 
     except Exception as e:
-        logging.error(f"Error: {e}")
-        return jsonify({'error': 'An error occurred while processing extension'}), 500
+        return jsonify({'error': str(e)}), 500
 
 

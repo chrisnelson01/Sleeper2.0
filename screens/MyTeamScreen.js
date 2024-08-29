@@ -95,7 +95,7 @@ const confirmAction = async () => {
           style={[
             styles.playerContainer,
             {
-              backgroundColor: player.contract > 0 ? '#395585' : '#293142',
+              backgroundColor: '#264b63',
             },
           ]}
           onPress={() => {

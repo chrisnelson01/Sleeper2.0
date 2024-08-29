@@ -54,3 +54,20 @@ class ExtensionTeam(db.Model):
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     team_id = db.Column(db.Integer, primary_key=True, nullable=False)
     extension_left = db.Column(db.Integer, nullable=False)
+
+class LeagueInfo(db.Model):
+    __tablename__ = 'league_info'
+    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    is_auction = db.Column(db.Integer, nullable=False)
+    is_keeper = db.Column(db.Integer, nullable=False)
+    money_per_team = db.Column(db.Integer, nullable=True)
+    keepers_allowed = db.Column(db.Integer, nullable=False)
+    rfa_allowed = db.Column(db.Integer, nullable=False)
+    amnesty_allowed = db.Column(db.Integer, nullable=False)
+    extension_allowed = db.Column(db.Integer, nullable=False)
+    extension_length = db.Column(db.Integer, nullable=True)
+    rfa_length = db.Column(db.Integer, nullable=True)
+    taxi_length = db.Column(db.Integer, nullable=False)
+    rollover_every = db.Column(db.Integer, nullable=False)
+    creation_date= db.Column(db.Text, nullable=False)
+    

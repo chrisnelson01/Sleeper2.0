@@ -1,10 +1,11 @@
+from datetime import datetime
 import json
 import asyncio
 import os
 import time
 from aiohttp import ClientSession
 import logging
-from models import AmnestyPlayer, ExtensionPlayer, RfaPlayer
+from models import AmnestyPlayer, ExtensionPlayer, LeagueInfo, RfaPlayer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -96,3 +97,41 @@ def get_amnesty_rfa_extension_data(players_with_id_and_amount, league_id):
             player['extension_contract_length'] = extension_dict[player_id]
 
     return players_with_id_and_amount
+
+def get_league_info(league_id):
+    league_info = LeagueInfo.query.filter_by(league_id=league_id).first()
+    if league_info:
+        return {
+            "league_id": league_info.league_id,
+            "is_auction": bool(league_info.is_auction),
+            "is_keeper": bool(league_info.is_keeper),
+            "money_per_team": league_info.money_per_team,
+            "keepers_allowed": league_info.keepers_allowed,
+            "rfa_allowed": league_info.rfa_allowed,
+            "amnesty_allowed": league_info.amnesty_allowed,
+            "extension_allowed": league_info.extension_allowed,
+            "extension_length": league_info.extension_length,
+            "rfa_length": league_info.rfa_length,
+            "taxi_length": league_info.taxi_length,
+            "rollover_every": league_info.rollover_every,
+            "creation_date" : league_info.creation_date
+        }
+    else:
+        return {}
+
+def calculate_years_remaining_from_creation(date, years):
+     # Convert the input date string to a datetime object
+    creation_date = datetime.strptime(date, "%Y-%m-%d")
+    today = datetime.today()
+
+    # Calculate the number of full years passed since the creation date
+    years_passed = today.year - creation_date.year
+
+    # Adjust if the anniversary hasn't passed yet this year
+    if (today.month, today.day) < (creation_date.month, creation_date.day):
+        years_passed -= 1
+
+    # Calculate the years remaining to reach the target number of years
+    years_remaining = years - years_passed
+
+    return years_remaining

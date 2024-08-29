@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, Text, FlatList, TouchableOpacity, View, StyleSheet, Image, Dimensions } from 'react-native';
+import { ScrollView, Text, FlatList, TouchableOpacity, View, StyleSheet, Image, Dimensions, Modal, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Font from 'expo-font';
 
 const TeamsScreen = ({ route }) => {
-  const { data } = route.params;
+  const { data, isOwner, leagueId } = route.params;
   const [expandedTeam, setExpandedTeam] = useState(null);
   const [playerBoxWidth, setPlayerBoxWidth] = useState(0);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   useEffect(() => {
     const updatePlayerBoxWidth = () => {
@@ -34,11 +35,149 @@ const TeamsScreen = ({ route }) => {
     setExpandedTeam((prevTeam) => (prevTeam === teamId ? null : teamId));
   };
 
+  const openPlayerModal = (player) => {
+    setSelectedPlayer(player);
+    setIsModalVisible(true);
+  };
+
+  const closePlayerModal = () => {
+    setSelectedPlayer(null);
+    setIsModalVisible(false);
+  };
+
+  const makeApiCall = async (url, method, payload) => {
+    try {
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'An error occurred');
+      }
+      return result;
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  const handleAmnestyRemoval = async (team) => {
+    if (selectedPlayer.amnesty) {
+      const payload = {
+        league_id: leagueId,
+        player_id: selectedPlayer.player_id,
+        team_id: team.owner_id,
+      };
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/amnesty', 'DELETE', payload);
+
+      if (result) {
+        selectedPlayer.amnesty = false;
+        team.amnesty_left += 1;
+        Alert.alert('Amnesty Removed', `${selectedPlayer.first_name} ${selectedPlayer.last_name} amnesty removed.`);
+        closePlayerModal();
+      }
+    }
+  };
+
+  const handleAmnestyAddition = async (team) => {
+    
+    if (!selectedPlayer.amnesty && team.amnesty_left > 0) {
+      const payload = {
+        league_id: leagueId,
+        player_id: selectedPlayer.player_id,
+        team_id: team.owner_id,
+      };
+      console.log(payload)
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/amnesty', 'POST', payload);
+
+      if (result) {
+        selectedPlayer.amnesty = true;
+        team.amnesty_left -= 1;
+        Alert.alert('Amnesty Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} amnesty added.`);
+        closePlayerModal();
+      }
+    }
+  };
+
+  const handleRfaRemoval = async (team) => {
+    if (selectedPlayer.rfa_contract_length) {
+      const payload = {
+        league_id: leagueId,
+        player_id: selectedPlayer.player_id,
+        team_id: team.owner_id,
+      };
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/rfa', 'DELETE', payload);
+
+      if (result) {
+        selectedPlayer.rfa_contract_length = 0;
+        team.rfa_left += 1;
+        Alert.alert('RFA Removed', `${selectedPlayer.first_name} ${selectedPlayer.last_name} RFA removed.`);
+        closePlayerModal();
+      }
+    }
+  };
+
+  const handleRfaAddition = async (team) => {
+    if (!selectedPlayer.rfa_contract_length && team.rfa_left > 0) {
+      const payload = {
+        league_id: leagueId,
+        player_id: selectedPlayer.player_id,
+        team_id: team.owner_id,
+      };
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/rfa', 'POST', payload);
+
+      if (result) {
+        selectedPlayer.rfa_contract_length = 1; // Assuming a default length of 1 for RFA
+        team.rfa_left -= 1;
+        Alert.alert('RFA Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} RFA added.`);
+        closePlayerModal();
+      }
+    }
+  };
+
+  const handleExtensionRemoval = async (team) => {
+    if (selectedPlayer.extension_contract_length) {
+      const payload = {
+        league_id: leagueId,
+        player_id: selectedPlayer.player_id,
+        team_id: team.owner_id,
+      };
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/extension', 'DELETE', payload);
+
+      if (result) {
+        selectedPlayer.extension_contract_length = 0;
+        team.extension_left += 1;
+        Alert.alert('Extension Removed', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extension removed.`);
+        closePlayerModal();
+      }
+    }
+  };
+
+  const handleExtensionAddition = async (team) => {
+    if (!selectedPlayer.extension_contract_length && team.extension_left > 0) {
+      const payload = {
+        league_id: leagueId,
+        player_id: selectedPlayer.player_id,
+        team_id: team.owner_id,
+      };
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/extension', 'POST', payload);
+
+      if (result) {
+        selectedPlayer.extension_contract_length = 1; // Assuming a default length of 1 for extensions
+        team.extension_left -= 1;
+        Alert.alert('Extension Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extension added.`);
+        closePlayerModal();
+      }
+    }
+  };
+
   const renderTeam = ({ item: team }) => {
-    // Construct avatar URL using the avatar hash
     const avatarUrl = team.avatar
       ? `https://sleepercdn.com/avatars/thumbs/${team.avatar}`
-      : null; // Fallback if no avatar is present
+      : null;
 
     return (
       <View style={styles.teamContainer}>
@@ -79,14 +218,11 @@ const TeamsScreen = ({ route }) => {
             {team.players.map((player) => (
               <TouchableOpacity
                 key={player.player_id}
-                onPress={() => {
-                  console.log(`${player.first_name} ${player.last_name} pressed`);
-                }}
+                onPress={() => isOwner && openPlayerModal(player)}
                 style={[
                   styles.playerBox,
                   {
-                    backgroundColor:
-                      player.contract >>> 0 ? '#395585' : '#293142',
+                    backgroundColor: '#264b63',
                   },
                 ]}
               >
@@ -95,43 +231,48 @@ const TeamsScreen = ({ route }) => {
                   style={styles.playerImage}
                 />
                 <View style={styles.playerInfo}>
-                    <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
-                    <View style={styles.row}>
-                        {player.contract !== 0 && (
-                          <View style={styles.row}>
-                            <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                            <Text style={{color: 'white'}}>
-                              {`${player.contract}  `}
-                            </Text>
-                          </View>
-                        )}
+                  <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
+                  <View style={styles.row}>
+                    {player.taxi && (
+                      <View style={styles.row}>
+                        <Ionicons name="car-outline" size={18} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
+                      </View>
+                    )}
+                    {player.contract !== 0 && (
+                      <View style={styles.row}>
+                        <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
+                        <Text style={{color: 'white'}}>
+                          {`${player.contract}  `}
+                        </Text>
+                      </View>
+                    )}
 
-                        {player.extension_contract_length && (
-                          <View style={styles.row}>
-                            <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
-                            <Text style={{color: 'white'}}>
-                              {`${player.extension_contract_length}  `}
-                            </Text>
-                          </View>
-                        )}
+                    {player.extension_contract_length && (
+                      <View style={styles.row}>
+                        <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
+                        <Text style={{color: 'white'}}>
+                          {`${player.extension_contract_length}  `}
+                        </Text>
+                      </View>
+                    )}
 
-                        {player.rfa_contract_length && (
-                          <View style={styles.row}>
-                            <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
-                            <Text style={{color: 'white'}}>
-                              {`${player.rfa_contract_length}  `}
-                            </Text>
-                          </View>
-                        )}
+                    {player.rfa_contract_length && (
+                      <View style={styles.row}>
+                        <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
+                        <Text style={{color: 'white'}}>
+                          {`${player.rfa_contract_length}  `}
+                        </Text>
+                      </View>
+                    )}
 
-                        {player.amnesty && (
-                          <View style={styles.row}>
-                            <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
-                          </View>
-                        )}
+                    {player.amnesty && (
+                      <View style={styles.row}>
+                        <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
+                      </View>
+                    )}
 
-                        <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
-                    </View>
+                    <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             ))}
@@ -142,18 +283,89 @@ const TeamsScreen = ({ route }) => {
   };
 
   return (
-    <FlatList
-      style={styles.container}
-      data={data}
-      keyExtractor={(team) => team.owner_id}
-      renderItem={renderTeam}
-      contentContainerStyle={{ padding: 10 }}
-    />
+    <View style={styles.container}>
+      <FlatList
+        data={data}
+        keyExtractor={(team) => team.owner_id}
+        renderItem={renderTeam}
+        contentContainerStyle={{ padding: 10 }}
+      />
+
+      {selectedPlayer && (
+        <Modal
+          transparent={true}
+          visible={isModalVisible}
+          onRequestClose={closePlayerModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>{`Manage ${selectedPlayer.first_name} ${selectedPlayer.last_name}`}</Text>
+
+              {/* Amnesty Actions */}
+              {selectedPlayer.amnesty ? (
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => handleAmnestyRemoval(data.find(team => team.owner_id === expandedTeam))}
+                >
+                  <Text style={styles.modalButtonText}>Remove Amnesty</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => handleAmnestyAddition(data.find(team => team.owner_id === expandedTeam))}
+                >
+                  <Text style={styles.modalButtonText}>Add Amnesty</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* RFA Actions */}
+              {selectedPlayer.rfa_contract_length ? (
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => handleRfaRemoval(data.find(team => team.owner_id === expandedTeam))}
+                >
+                  <Text style={styles.modalButtonText}>Remove RFA</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => handleRfaAddition(data.find(team => team.owner_id === expandedTeam))}
+                >
+                  <Text style={styles.modalButtonText}>Add RFA</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Extension Actions */}
+              {selectedPlayer.extension_contract_length ? (
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => handleExtensionRemoval(data.find(team => team.owner_id === expandedTeam))}
+                >
+                  <Text style={styles.modalButtonText}>Remove Extension</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => handleExtensionAddition(data.find(team => team.owner_id === expandedTeam))}
+                >
+                  <Text style={styles.modalButtonText}>Add Extension</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity onPress={closePlayerModal}>
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     backgroundColor: '#181c28',
   },
   teamContainer: {
@@ -220,11 +432,67 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignContent: 'flex-end', // Aligns items horizontally
-    // Vertically centers items
+    alignItems: 'center'// Vertically centers items
   },
   iconOffset: {
     marginLeft: 5, // Adds space between the icon and text
-    paddingTop: 2, // Nudges the icon down slightly to align with text
+    paddingTop: 1 // Nudges the icon down slightly to align with text
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContainer: {
+    backgroundColor: '#293142',
+    padding: 20,
+    borderRadius: 10,
+    width: '85%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: 'white',
+  },
+  modalSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  actionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 10,
+    marginBottom: 5,
+    fontWeight: 'bold',
+  },
+  modalButton: {
+    backgroundColor: '#4A90E2',
+    paddingVertical: 10,
+    borderRadius: 5,
+    width: '80%', // Set width as percentage
+    alignItems: 'center',
+    marginVertical: 10, // Add margin between buttons
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    backgroundColor: '#4990e1',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    marginTop: 10,
   },
 });
 

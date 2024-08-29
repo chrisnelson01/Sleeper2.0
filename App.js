@@ -11,7 +11,6 @@ import TeamsScreen from './screens/TeamsScreen';
 import FutureScreen from './screens/FutureScreen';
 import TradeScreen from './screens/TradeScreen';
 import MyTeamScreen from './screens/MyTeamScreen';
-import RulesScreen from './screens/RulesScreen';
 import NavBar from './components/NavBar';
 import ContractsScreen from './screens/ContractsScreen';
 import SettingsScreen from './screens/SettingsScreen'; // Import SettingsScreen
@@ -25,6 +24,7 @@ function App() {
   const [selectedLeagueId, setSelectedLeagueId] = useState('');
   const [data, setData] = useState(null);
   const [contracts, setContracts] = useState([]);  // State to store contracts
+  const [leagueData, setLeagueData] = useState(null)
 
   // Check if userId and selectedLeagueId exist in cache on initial load
   useEffect(() => {
@@ -94,7 +94,8 @@ function App() {
     try {
       const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rosters/${leagueId}/${userId}`);
       const jsonData = await response.json();
-      setData(jsonData);
+      setData(jsonData['team_info']);
+      setLeagueData(jsonData['league_info'])
       await fetchContracts(leagueId);  // Fetch contracts for the league
     } catch (error) {
       console.error("Error fetching league data:", error);
@@ -183,10 +184,9 @@ function App() {
               }}
             >
               <Stack.Screen name="MyTeam" component={MyTeamScreen} initialParams={{ team: myTeam, leagueId: selectedLeagueId, fetchLeagueData}} />
-              <Stack.Screen name="Teams" component={TeamsScreen} initialParams={{ data }} />
+              <Stack.Screen name="Teams" component={TeamsScreen} initialParams={{ data, isOwner: myTeam['is_owner'], leagueId: selectedLeagueId}} />
               <Stack.Screen name="Future" component={FutureScreen} initialParams={{ data }} />
               <Stack.Screen name="Trade" component={TradeScreen} initialParams={{ playerData }} />
-              <Stack.Screen name="Rules" component={RulesScreen} initialParams={{ leagueId: selectedLeagueId }} />
               <Stack.Screen
                 name="Contracts"
                 component={ContractsScreen}
@@ -195,7 +195,7 @@ function App() {
               <Stack.Screen
                 name="Settings"
                 component={SettingsScreen}  // Add SettingsScreen to the stack
-                initialParams={{ leagues, selectedLeagueId, handleLogout, handleSelectLeague }}  // Pass logout and leagues
+                initialParams={{ leagues, selectedLeagueId, handleLogout, handleSelectLeague, isOwner: myTeam['is_owner'] }}  // Pass logout and leagues
               />
             </Stack.Navigator>
           </ScrollView>

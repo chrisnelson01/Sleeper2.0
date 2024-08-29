@@ -14,25 +14,34 @@ const FutureScreen = ({ route }) => {
     setExpandedTeam((prevTeam) => (prevTeam === teamId ? null : teamId));
   };
 
-  const calculateCapSpace = (team, years) => {
-    const initialCapSpace = Array.from({ length: years }, () => 260);
+const calculateCapSpace = (team, years) => {
+  // Initialize the cap space array starting from year 0
+  const initialCapSpace = Array.from({ length: years + 1 }, () => 260);
 
-    team.players.forEach((player) => {
-      for (let i = 0; i < Math.min(player.contract, years); i++) {
+  team.players.forEach((player) => {
+    // If the player's contract is 0, it should still affect the cap space for Year 0
+    if (player.contract === 0) {
+      initialCapSpace[0] -= parseInt(player.amount);
+    } else {
+      // Otherwise, subtract for each year the contract covers
+      for (let i = 0; i < Math.min(player.contract, years + 1); i++) {
         initialCapSpace[i] -= parseInt(player.amount);
       }
-    });
-
-    return initialCapSpace.slice(0, years);
-  };
-
-  const chartData = data.map((team) => {
-    return {
-      name: team.display_name,
-      avatar: team.avatar, // Add avatar URL from team data
-      data: calculateCapSpace(team, 5),
-    };
+    }
   });
+
+  // Return the cap space data for the given number of years, including year 0
+  return initialCapSpace.slice(0, years + 1);
+};
+
+const chartData = data.map((team) => {
+  return {
+    name: team.display_name,
+    avatar: team.avatar, // Add avatar URL from team data
+    data: calculateCapSpace(team, 4), // Now this includes years 0 to 5
+  };
+});
+
 
   return (
     <View style={{flex: 1, backgroundColor: '#181c28', paddingTop: 10}}>
@@ -68,7 +77,7 @@ const FutureScreen = ({ route }) => {
                 <React.Fragment>
                   <LineChart
                     data={{
-                      labels: ["Year 1", "Year 2", "Year 3", "Year 4", "Year 5"],
+                      labels: ["Now", "Year 1", "Year 2", "Year 3", "Year 4"],
                       datasets: [
                         {
                           data: team.data,
@@ -98,7 +107,7 @@ const FutureScreen = ({ route }) => {
                   <View style={styles.dollarAmountContainer}>
                     {team.data.map((amount, yearIndex) => (
                       <Text key={yearIndex} style={styles.dollarAmountText}>
-                        Year {yearIndex + 1}: ${amount}
+                        {yearIndex === 0 ? `Now: $${amount}` : `Year ${yearIndex}: $${amount}`}
                       </Text>
                     ))}
                   </View>
