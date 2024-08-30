@@ -30,7 +30,7 @@ const confirmAction = async () => {
     let body;
 
     if (confirmationType === 'RFA') {
-      endpoint = 'http://127.0.0.1:5000/api/rfa';
+      endpoint = 'https://chrisnel01.pythonanywhere.com/api/rfa';
       body = JSON.stringify({
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
@@ -39,7 +39,7 @@ const confirmAction = async () => {
       });
       Alert.alert('RFA Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} added as RFA.`);
     } else if (confirmationType === 'Amnesty') {
-      endpoint = 'http://127.0.0.1:5000/api/amnesty';
+      endpoint = 'https://chrisnel01.pythonanywhere.com/api/amnesty';
       body = JSON.stringify({
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
@@ -47,7 +47,7 @@ const confirmAction = async () => {
       });
       Alert.alert('Amnesty Applied', `${selectedPlayer.first_name} ${selectedPlayer.last_name} was amnestied.`);
     } else if (confirmationType === 'Extend') {
-      endpoint = 'http://127.0.0.1:5000/api/extensions';
+      endpoint = 'https://chrisnel01.pythonanywhere.com/api/extensions';
       body = JSON.stringify({
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
