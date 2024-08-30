@@ -232,7 +232,9 @@ const TeamsScreen = ({ route }) => {
                   style={styles.playerImage}
                 />
                 <View style={styles.playerInfo}>
+                  <View style={styles.amountContainer}>
                   <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
+                  </View>
                   <View style={styles.row}>
                     {player.taxi && (
                       <View style={styles.row}>

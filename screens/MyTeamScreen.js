@@ -108,25 +108,27 @@ const confirmAction = async () => {
           <View style={styles.playerInfo}>
           <Text style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
           <View style={styles.row}> {/* Aligning items side by side */}
+            <View style={styles.amountContainer}>
             <Text style={styles.playerAmount}>
               {`$${player.amount}`}
             </Text>
+            </View>
             {player.contract !== 0 && (
               <View style={styles.row}> {/* Wrapping contract info */}
                 <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                <Text style={styles.playerAmount}>{` ${player.contract} `}</Text>
+                <Text style={styles.icon}>{` ${player.contract} `}</Text>
               </View>
             )}
             {player.extension_contract_length && (
               <View style={styles.row}> {/* Wrapping extension info */}
                 <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
-                <Text style={styles.playerAmount}>{` ${player.extension_contract_length} `}</Text>
+                <Text style={styles.icon}>{` ${player.extension_contract_length} `}</Text>
               </View>
             )}
             {player.rfa_contract_length && (
               <View style={styles.row}> {/* Wrapping RFA info */}
                 <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
-                <Text style={styles.playerAmount}>{` ${player.rfa_contract_length} `}</Text>
+                <Text style={styles.icon}>{` ${player.rfa_contract_length} `}</Text>
               </View>
             )}
             {player.amnesty && (
@@ -252,6 +254,13 @@ const styles = StyleSheet.create({
   playerAmount: {
     fontSize: 14,
     color: 'white',
+    minWidth: 30,
+    textAlign: 'left'
+  },
+  icon: {
+    fontSize: 14,
+    color: 'white',
+    textAlign: 'left'
   },
   errorText: {
     color: 'red',
@@ -308,6 +317,9 @@ const styles = StyleSheet.create({
   iconOffset: {
     marginLeft: 5, // Adds space between the icon and text
   },
+  amountContainer: {
+    alignItems: 'center'
+  }
 });
 
 export default MyTeamScreen;
