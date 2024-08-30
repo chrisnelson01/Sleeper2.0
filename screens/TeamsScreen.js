@@ -239,16 +239,7 @@ const TeamsScreen = ({ route }) => {
                         <Ionicons name="car-outline" size={18} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
                       </View>
                     )}
-                    {player.contract !== 0 && (
-                      <View style={styles.row}>
-                        <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                        <Text style={{color: 'white'}}>
-                          {`${player.contract}  `}
-                        </Text>
-                      </View>
-                    )}
-
-                    {player.extension_contract_length && (
+                                        {player.extension_contract_length && (
                       <View style={styles.row}>
                         <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
                         <Text style={{color: 'white'}}>
@@ -272,7 +263,17 @@ const TeamsScreen = ({ route }) => {
                       </View>
                     )}
 
+                    {player.contract !== 0 && (
+                      <View style={styles.row}>
+                        <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
+                        <Text style={{color: 'white'}}>
+                          {`${player.contract}  `}
+                        </Text>
+                      </View>
+                    )}
+                  <View style={styles.amountContainer}>
                     <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
+                  </View>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -434,7 +435,9 @@ const styles = StyleSheet.create({
   playerAmount: {
     color: 'white',
     alignContent: 'flex-end',
-    marginRight: 15
+    marginRight: 15,
+    minWidth: 25,
+    textAlign: 'right'
   },
   row: {
     flexDirection: 'row',
@@ -499,6 +502,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     marginTop: 10,
+  },
+  amountContainer: {
+    alignItems: 'flex-end', // Align the amount text to the end of the container
   },
 });
 

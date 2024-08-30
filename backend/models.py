@@ -1,4 +1,5 @@
-from extensions import db  # Import db from extensions.py
+from extensions import db
+from sqlalchemy import func # Import db from extensions.py
 
 # Contract Model
 class Contract(db.Model):
@@ -6,7 +7,7 @@ class Contract(db.Model):
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
-    timestamp = db.Column(db.Text, nullable=True)
+    timestamp = db.Column(db.Text, nullable=False, server_default=func.current_date())
 
 # Rule Model
 class Rule(db.Model):
@@ -20,7 +21,7 @@ class AmnestyPlayer(db.Model):
     __tablename__ = 'amnesty_player'
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    timestamp = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.Text, nullable=False, server_default=func.current_date())
 
 # Amnesty Team Model
 class AmnestyTeam(db.Model):
@@ -35,14 +36,14 @@ class RfaPlayer(db.Model):
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
-    timestamp = db.Column(db.Text, nullable=True)
+    timestamp = db.Column(db.Text, nullable=False, server_default=func.current_date())
 
 # RFA Team Model
 class RfaTeam(db.Model):
     __tablename__ = 'rfa_teams'
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     team_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    rfa_left = db.Column(db.Integer, nullable=True)
+    rfa_left = db.Column(db.Integer, nullable=False)
 
 # Extension Player Model
 class ExtensionPlayer(db.Model):
@@ -50,7 +51,7 @@ class ExtensionPlayer(db.Model):
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
-    timestamp = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.Text, nullable=False, server_default=func.current_date())
 
 # Extension Team Model
 class ExtensionTeam(db.Model):

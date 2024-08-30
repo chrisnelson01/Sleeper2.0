@@ -1,3 +1,4 @@
+import datetime
 import logging
 import time
 import asyncio
@@ -201,6 +202,8 @@ def add_or_update_contract():
             if not contract:
                 return jsonify({'error': 'Contract does not exist'}), 404
             contract.contract_length = contract_length
+            contract.timestamp = datetime.date.today().strftime('%Y-%m-%d')
+            logging.info(contract.timestamp)
             db.session.commit()
             return jsonify({'message': 'Contract updated successfully'}), 200
 
