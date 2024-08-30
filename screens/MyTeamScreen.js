@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', // Aligns contract items in a row
     justifyContent: 'flex-end', // Aligns contract items to the right
     flex: 1,
-    marginRight: 10
+    marginRight: 5
   },
 });
 
