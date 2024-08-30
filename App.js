@@ -81,7 +81,7 @@ function App() {
   // Function to fetch contracts
   const fetchContracts = async (leagueId) => {
     try {
-      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/contracts/${leagueId}`);
+      const response = await fetch(`http://127.0.0.1:5000/api/contracts/${leagueId}`);
       const jsonData = await response.json();
       setContracts(jsonData);
     } catch (error) {
@@ -92,7 +92,7 @@ function App() {
   // Function to fetch league data
   const fetchLeagueData = async (leagueId, userId) => {
     try {
-      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rosters/${leagueId}/${userId}`);
+      const response = await fetch(`http://127.0.0.1:5000/api/rosters/${leagueId}/${userId}`);
       const jsonData = await response.json();
       setData(jsonData['team_info']);
       setLeagueData(jsonData['league_info'])
@@ -183,8 +183,8 @@ function App() {
                 title: "Sleeper2.0"
               }}
             >
-              <Stack.Screen name="MyTeam" component={MyTeamScreen} initialParams={{ team: myTeam, leagueId: selectedLeagueId, fetchLeagueData}} />
-              <Stack.Screen name="Teams" component={TeamsScreen} initialParams={{ data, isOwner: myTeam['is_owner'], leagueId: selectedLeagueId}} />
+              <Stack.Screen name="MyTeam" component={MyTeamScreen} initialParams={{ team: myTeam, leagueId: selectedLeagueId, fetchLeagueData, leagueData: leagueData}} />
+              <Stack.Screen name="Teams" component={TeamsScreen} initialParams={{ data, isOwner: myTeam['is_owner'], leagueData: leagueData, leagueId: selectedLeagueId}} />
               <Stack.Screen name="Future" component={FutureScreen} initialParams={{ data }} />
               <Stack.Screen name="Trade" component={TradeScreen} initialParams={{ playerData }} />
               <Stack.Screen

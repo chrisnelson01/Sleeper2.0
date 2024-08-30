@@ -42,7 +42,7 @@ const SettingsScreen = ({ route, navigation }) => {
     const fetchRules = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rules/${selectedLeague}`);
+        const response = await fetch(`http://127.0.0.1:5000/api/rules/${selectedLeague}`);
         const data = await response.json();
 
         if (response.ok) {
@@ -78,7 +78,7 @@ const SettingsScreen = ({ route, navigation }) => {
   const handleUpdateRules = async () => {
     try {
       const updatedRules = rules.map((rule, index) => ({ ...rule, rule_text: editedRules[index] }));
-      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rules/${selectedLeague}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/rules/${selectedLeague}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedRules),

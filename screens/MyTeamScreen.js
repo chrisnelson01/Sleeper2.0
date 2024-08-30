@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Modal, Alert } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 const MyTeamScreen = ({ route, navigation }) => {
-  const { team, leagueId } = route.params;
+  const { team, leagueId, leagueData } = route.params;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [confirmationType, setConfirmationType] = useState(null);
@@ -30,17 +30,16 @@ const confirmAction = async () => {
     let body;
 
     if (confirmationType === 'RFA') {
-      const newContractLength = 3;
-      endpoint = 'https://chrisnel01.pythonanywhere.com/api/rfa';
+      endpoint = 'http://127.0.0.1:5000/api/rfa';
       body = JSON.stringify({
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
-        contract_length: newContractLength,
+        contract_length: leagueData['rfa_length'],
       });
       Alert.alert('RFA Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} added as RFA.`);
     } else if (confirmationType === 'Amnesty') {
-      endpoint = 'https://chrisnel01.pythonanywhere.com/api/amnesty';
+      endpoint = 'http://127.0.0.1:5000/api/amnesty';
       body = JSON.stringify({
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
@@ -48,12 +47,11 @@ const confirmAction = async () => {
       });
       Alert.alert('Amnesty Applied', `${selectedPlayer.first_name} ${selectedPlayer.last_name} was amnestied.`);
     } else if (confirmationType === 'Extend') {
-      const newContractLength = 3;
-      endpoint = 'https://chrisnel01.pythonanywhere.com/api/extensions';
+      endpoint = 'http://127.0.0.1:5000/api/extensions';
       body = JSON.stringify({
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
-        contract_length: newContractLength,
+        contract_length: leagueData['extension_length'],
         team_id: team.owner_id,
       });
       Alert.alert('Player Extended', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extended.`);
@@ -309,7 +307,6 @@ const styles = StyleSheet.create({
   },
   iconOffset: {
     marginLeft: 5, // Adds space between the icon and text
-    paddingTop: 2
   },
 });
 

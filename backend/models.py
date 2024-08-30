@@ -6,6 +6,7 @@ class Contract(db.Model):
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.Text, nullable=True)
 
 # Rule Model
 class Rule(db.Model):
@@ -19,13 +20,14 @@ class AmnestyPlayer(db.Model):
     __tablename__ = 'amnesty_player'
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    timestamp = db.Column(db.Text, nullable=False)
 
 # Amnesty Team Model
 class AmnestyTeam(db.Model):
     __tablename__ = 'amnesty_team'
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     team_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    amnesty_left = db.Column(db.Integer, nullable=False)
+    amnesty_left = db.Column(db.Integer, nullable=True)
 
 # RFA Player Model
 class RfaPlayer(db.Model):
@@ -33,13 +35,14 @@ class RfaPlayer(db.Model):
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.Text, nullable=True)
 
 # RFA Team Model
 class RfaTeam(db.Model):
     __tablename__ = 'rfa_teams'
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     team_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    rfa_left = db.Column(db.Integer, nullable=False)
+    rfa_left = db.Column(db.Integer, nullable=True)
 
 # Extension Player Model
 class ExtensionPlayer(db.Model):
@@ -47,6 +50,7 @@ class ExtensionPlayer(db.Model):
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)
     player_id = db.Column(db.Integer, primary_key=True, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.Text, nullable=False)
 
 # Extension Team Model
 class ExtensionTeam(db.Model):

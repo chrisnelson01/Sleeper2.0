@@ -40,7 +40,7 @@ const ContractsScreen = ({ route, navigation }) => {
     const isUpdate = playerHasContract(selectedPlayer);  // Check if player has a contract
     try {
       const method = isUpdate ? 'PUT' : 'POST';  // Use PUT for updates, POST for new entries
-      const response = await fetch('https://chrisnel01.pythonanywhere.com/api/contracts', {
+      const response = await fetch('http://127.0.0.1:5000/api/contracts', {
         method: method,
         headers: {
           'Content-Type': 'application/json',

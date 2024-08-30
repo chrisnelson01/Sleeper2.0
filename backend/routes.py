@@ -2,7 +2,7 @@ import logging
 import time
 import asyncio
 from flask import Blueprint, jsonify, request
-from utils import calculate_years_remaining_from_creation, fetch_data, get_amnesty_rfa_extension_data, get_league_info, get_waiver_data_async, get_previous_season_league_id, load_local_players_data, merge_draft_data
+from utils import calculate_years_remaining_from_creation, fetch_data, get_amnesty_rfa_extension_data, get_league_info, get_waiver_data_async, get_all_previous_season_league_ids, load_local_players_data, merge_draft_data
 from models import *
 from extensions import db  # Assuming 'db' is from an 'extensions' module where SQLAlchemy is initialized
 
@@ -15,8 +15,8 @@ async def get_data_route(league_id, user_id):
     try:
         start_time = time.time()
 
-        # Fetch previous season league id
-        previous_league_id = await get_previous_season_league_id(user_id)
+        # Fetch all previous season league ids starting from 2023
+        previous_league_ids = await get_all_previous_season_league_ids(user_id)
         
         league_info = get_league_info(league_id)
         
@@ -29,17 +29,33 @@ async def get_data_route(league_id, user_id):
 
         # Fetch previous draft data if available
         previous_draft_data = []
-        if previous_league_id:
-            previous_drafts = await fetch_data(f"https://api.sleeper.app/v1/league/{previous_league_id}/drafts")
-            if previous_drafts:
-                previous_draft_id = previous_drafts[0]['draft_id']
-                previous_draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{previous_draft_id}/picks")
+        for year, league_ids in previous_league_ids.items():
+            for prev_league_id in league_ids:
+                previous_drafts = await fetch_data(f"https://api.sleeper.app/v1/league/{prev_league_id}/drafts")
+                if previous_drafts:
+                    previous_draft_id = previous_drafts[0]['draft_id']
+                    draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{previous_draft_id}/picks")
+                    previous_draft_data.extend(draft_data)
         
+        # Fetch current draft data
         current_draft_id = current_drafts[0]['draft_id']
         current_draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{current_draft_id}/picks")
+        
+        # Merge current draft data with previous seasons' draft data
         merged_draft_data = merge_draft_data(current_draft_data, previous_draft_data)
 
-        waiver_data = await get_waiver_data_async(league_id, previous_league_id)
+        # Fetch and merge waiver data for all previous seasons
+        waiver_data = []
+        for year, league_ids in previous_league_ids.items():
+            for prev_league_id in league_ids:
+                prev_waiver_data = await get_waiver_data_async(league_id, prev_league_id)
+                waiver_data.extend(prev_waiver_data)
+        
+        # Fetch current season waiver data
+        current_waiver_data = await get_waiver_data_async(league_id, None)
+        
+        # Merge current waiver data with previous seasons' waiver data
+        waiver_data.extend(current_waiver_data)
         local_player_data = load_local_players_data()
 
         # Ensure local_player_data is a dictionary (convert if necessary)
@@ -102,7 +118,7 @@ async def get_data_route(league_id, user_id):
                 if player_info:
                     # Get the contract length from the database or use 1-year default if no contract found
                     contract_length = Contract.query.filter_by(league_id=league_id, player_id=player).first()
-                    player_info['contract'] = calculate_years_remaining_from_creation(league_info['creation_date'],contract_length.contract_length) if contract_length else 0
+                    player_info['contract'] = calculate_years_remaining_from_creation(contract_length.timestamp,contract_length.contract_length) if contract_length else 0
 
                     # Add player amount to total
                     total_amount += int(player_info['amount'])
@@ -335,14 +351,14 @@ def add_or_update_rfa():
         league_id = data.get('league_id')
         player_id = data.get('player_id')
         team_id = data.get('team_id')
-
+        contract_length = data.get('contract_length')
         if not league_id or not team_id:
             return jsonify({'error': 'Missing league_id or team_id'}), 400
 
         # Fetch the RFA record for the player
         rfa = RfaPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
         rfa_team = RfaTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
-        logging.info(rfa)
+        
         if not rfa_team:
             return jsonify({'error': 'RFA data does not exist for team'}), 404
 
@@ -354,7 +370,7 @@ def add_or_update_rfa():
                 return jsonify({'error': 'No RFA actions left for the team'}), 400
             
             # Add new RFA for the player
-            new_rfa = RfaPlayer(league_id=league_id, player_id=player_id)
+            new_rfa = RfaPlayer(league_id=league_id, player_id=player_id, contract_length=contract_length)
             db.session.add(new_rfa)
             
             # Decrease the team's rfa_left by 1
@@ -395,7 +411,7 @@ def add_or_update_extension():
         league_id = data.get('league_id')
         player_id = data.get('player_id')
         team_id = data.get('team_id')
-
+        contract_length = data.get('contract_length')
         if not league_id or not team_id:
             return jsonify({'error': 'Missing league_id or team_id'}), 400
 
@@ -414,7 +430,7 @@ def add_or_update_extension():
                 return jsonify({'error': 'No extension actions left for the team'}), 400
             
             # Add new extension for the player
-            new_extension = ExtensionPlayer(league_id=league_id, player_id=player_id)
+            new_extension = ExtensionPlayer(league_id=league_id, player_id=player_id, contract_length=contract_length)
             db.session.add(new_extension)
             
             # Decrease the team's extension_left by 1

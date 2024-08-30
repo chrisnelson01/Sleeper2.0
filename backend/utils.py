@@ -35,15 +35,19 @@ def load_local_players_data():
     except Exception as e:
         logging.error(f"Error loading local players.json from {file_path}: {e}")
         return {}
-async def get_previous_season_league_id(user_id):
+async def get_all_previous_season_league_ids(user_id):
     current_year = time.localtime().tm_year
-    previous_season = current_year - 1
-    leagues_url = f"https://api.sleeper.app/v1/user/{user_id}/leagues/nfl/{previous_season}"
-    leagues = await fetch_data(leagues_url)
+    start_year = 2023
+    league_ids = {}
 
-    if leagues:
-        return leagues[0]['league_id']
-    return None
+    for year in range(start_year, current_year):
+        leagues_url = f"https://api.sleeper.app/v1/user/{user_id}/leagues/nfl/{year}"
+        leagues = await fetch_data(leagues_url)
+        
+        if leagues:
+            league_ids[year] = [league['league_id'] for league in leagues]
+
+    return league_ids
 
 async def get_waiver_data_async(league_id, previous_league_id=None):
     current_league_waivers = await asyncio.gather(
@@ -76,10 +80,12 @@ def get_amnesty_rfa_extension_data(players_with_id_and_amount, league_id):
     amnesty_players = AmnestyPlayer.query.filter_by(league_id=league_id).all()
     rfa_players = RfaPlayer.query.filter_by(league_id=league_id).all()
     extension_players = ExtensionPlayer.query.filter_by(league_id=league_id).all()
+
     # Convert the query results to dictionaries for easier lookup
     amnesty_dict = {player.player_id: True for player in amnesty_players}
-    rfa_dict = {player.player_id: player.contract_length for player in rfa_players}
-    extension_dict = {player.player_id: player.contract_length for player in extension_players}
+    rfa_dict = {player.player_id: (player.contract_length, player.timestamp) for player in rfa_players}
+    extension_dict = {player.player_id: (player.contract_length, player.timestamp) for player in extension_players}
+
     # Loop through each player and update with amnesty, RFA, or extension data if applicable
     for player in players_with_id_and_amount:
         player_id = int(player['player_id'])
@@ -90,11 +96,13 @@ def get_amnesty_rfa_extension_data(players_with_id_and_amount, league_id):
 
         # Check and update RFA data
         if player_id in rfa_dict:
-            player['rfa_contract_length'] = rfa_dict[player_id]
+            contract_length, timestamp = rfa_dict[player_id]
+            player['rfa_contract_length'] = calculate_years_remaining_from_creation(timestamp, contract_length)
 
         # Check and update Extension data
         if player_id in extension_dict:
-            player['extension_contract_length'] = extension_dict[player_id]
+            contract_length, timestamp = extension_dict[player_id]
+            player['extension_contract_length'] = calculate_years_remaining_from_creation(timestamp, contract_length)
 
     return players_with_id_and_amount
 
@@ -120,7 +128,7 @@ def get_league_info(league_id):
         return {}
 
 def calculate_years_remaining_from_creation(date, years):
-     # Convert the input date string to a datetime object
+    # Convert the input date string to a datetime object
     creation_date = datetime.strptime(date, "%Y-%m-%d")
     today = datetime.today()
 
@@ -134,4 +142,4 @@ def calculate_years_remaining_from_creation(date, years):
     # Calculate the years remaining to reach the target number of years
     years_remaining = years - years_passed
 
-    return years_remaining
+    return max(years_remaining, 0)  # Ensure that the remaining years are not negative

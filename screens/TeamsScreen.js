@@ -3,7 +3,7 @@ import { ScrollView, Text, FlatList, TouchableOpacity, View, StyleSheet, Image, 
 import { Ionicons } from '@expo/vector-icons';
 
 const TeamsScreen = ({ route }) => {
-  const { data, isOwner, leagueId } = route.params;
+  const { data, isOwner,leagueData, leagueId } = route.params;
   const [expandedTeam, setExpandedTeam] = useState(null);
   const [playerBoxWidth, setPlayerBoxWidth] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -31,8 +31,8 @@ const TeamsScreen = ({ route }) => {
     };
   }, []);
 
-  const toggleTeamExpansion = (teamId) => {
-    setExpandedTeam((prevTeam) => (prevTeam === teamId ? null : teamId));
+  const toggleTeamExpansion = (team) => {
+    setExpandedTeam((prevTeam) => (prevTeam === team ? null : team));
   };
 
   const openPlayerModal = (player) => {
@@ -71,10 +71,10 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/amnesty', 'DELETE', payload);
+      const result = await makeApiCall('http://127.0.0.1:5000/api/amnesty', 'DELETE', payload);
 
       if (result) {
-        selectedPlayer.amnesty = false;
+        delete selectedPlayer.amnesty;
         team.amnesty_left += 1;
         Alert.alert('Amnesty Removed', `${selectedPlayer.first_name} ${selectedPlayer.last_name} amnesty removed.`);
         closePlayerModal();
@@ -90,8 +90,7 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      console.log(payload)
-      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/amnesty', 'POST', payload);
+      const result = await makeApiCall('http://127.0.0.1:5000/api/amnesty', 'POST', payload);
 
       if (result) {
         selectedPlayer.amnesty = true;
@@ -109,10 +108,10 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/rfa', 'DELETE', payload);
+      const result = await makeApiCall('http://127.0.0.1:5000/api/rfa', 'DELETE', payload);
 
       if (result) {
-        selectedPlayer.rfa_contract_length = 0;
+        delete selectedPlayer.rfa_contract_length
         team.rfa_left += 1;
         Alert.alert('RFA Removed', `${selectedPlayer.first_name} ${selectedPlayer.last_name} RFA removed.`);
         closePlayerModal();
@@ -126,11 +125,12 @@ const TeamsScreen = ({ route }) => {
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
+        contract_length: leagueData['rfa_length']
       };
-      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/rfa', 'POST', payload);
+      const result = await makeApiCall('http://127.0.0.1:5000/api/rfa', 'POST', payload);
 
       if (result) {
-        selectedPlayer.rfa_contract_length = 1; // Assuming a default length of 1 for RFA
+        selectedPlayer.rfa_contract_length = leagueData['extension_length']; // Assuming a default length of 1 for RFA
         team.rfa_left -= 1;
         Alert.alert('RFA Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} RFA added.`);
         closePlayerModal();
@@ -145,10 +145,10 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/extension', 'DELETE', payload);
+      const result = await makeApiCall('http://127.0.0.1:5000/api/extension', 'DELETE', payload);
 
       if (result) {
-        selectedPlayer.extension_contract_length = 0;
+        delete selectedPlayer.extension_contract_length
         team.extension_left += 1;
         Alert.alert('Extension Removed', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extension removed.`);
         closePlayerModal();
@@ -162,11 +162,12 @@ const TeamsScreen = ({ route }) => {
         league_id: leagueId,
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
+        contract_length: leagueData['extension_length']
       };
-      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/extension', 'POST', payload);
+      const result = await makeApiCall('http://127.0.0.1:5000/api/extension', 'POST', payload);
 
       if (result) {
-        selectedPlayer.extension_contract_length = 1; // Assuming a default length of 1 for extensions
+        selectedPlayer.extension_contract_length = leagueData['extension_length'];
         team.extension_left -= 1;
         Alert.alert('Extension Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extension added.`);
         closePlayerModal();
@@ -182,7 +183,7 @@ const TeamsScreen = ({ route }) => {
     return (
       <View style={styles.teamContainer}>
         <TouchableOpacity
-          onPress={() => toggleTeamExpansion(team.owner_id)}
+          onPress={() => toggleTeamExpansion(team)}
           style={styles.teamHeader}
         >
           <View style={styles.teamInfo}>
@@ -206,14 +207,14 @@ const TeamsScreen = ({ route }) => {
             )}
             <Text style={{ color: 'white' , marginRight: 10}}>{`   $${team.total_amount}`}</Text>
             <Ionicons
-              name={expandedTeam === team.owner_id ? 'chevron-up-outline' : 'chevron-down-outline'}
+              name={expandedTeam === team ? 'chevron-up-outline' : 'chevron-down-outline'}
               size={24}
               color="white"
               style={{marginRight: 5}}
             />
           </View>
         </TouchableOpacity>
-        {expandedTeam === team.owner_id && (
+        {expandedTeam === team && (
           <View style={styles.playersContainer}>
             {team.players.map((player) => (
               <TouchableOpacity
@@ -305,51 +306,57 @@ const TeamsScreen = ({ route }) => {
               {selectedPlayer.amnesty ? (
                 <TouchableOpacity
                   style={styles.modalButton}
-                  onPress={() => handleAmnestyRemoval(data.find(team => team.owner_id === expandedTeam))}
+                  onPress={() => handleAmnestyRemoval(expandedTeam)}
                 >
                   <Text style={styles.modalButtonText}>Remove Amnesty</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={styles.modalButton}
-                  onPress={() => handleAmnestyAddition(data.find(team => team.owner_id === expandedTeam))}
-                >
-                  <Text style={styles.modalButtonText}>Add Amnesty</Text>
-                </TouchableOpacity>
+                expandedTeam.amnesty_left > 0 && (
+                  <TouchableOpacity
+                    style={styles.modalButton}
+                    onPress={() => handleAmnestyAddition(expandedTeam)}
+                  >
+                    <Text style={styles.modalButtonText}>Add Amnesty</Text>
+                  </TouchableOpacity>
+                )
               )}
 
               {/* RFA Actions */}
               {selectedPlayer.rfa_contract_length ? (
                 <TouchableOpacity
                   style={styles.modalButton}
-                  onPress={() => handleRfaRemoval(data.find(team => team.owner_id === expandedTeam))}
+                  onPress={() => handleRfaRemoval(expandedTeam)}
                 >
                   <Text style={styles.modalButtonText}>Remove RFA</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={styles.modalButton}
-                  onPress={() => handleRfaAddition(data.find(team => team.owner_id === expandedTeam))}
-                >
-                  <Text style={styles.modalButtonText}>Add RFA</Text>
-                </TouchableOpacity>
+                expandedTeam.rfa_left > 0 && (
+                  <TouchableOpacity
+                    style={styles.modalButton}
+                    onPress={() => handleRfaAddition(expandedTeam)}
+                  >
+                    <Text style={styles.modalButtonText}>Add RFA</Text>
+                  </TouchableOpacity>
+                )
               )}
 
               {/* Extension Actions */}
               {selectedPlayer.extension_contract_length ? (
                 <TouchableOpacity
                   style={styles.modalButton}
-                  onPress={() => handleExtensionRemoval(data.find(team => team.owner_id === expandedTeam))}
+                  onPress={() => handleExtensionRemoval(expandedTeam)}
                 >
                   <Text style={styles.modalButtonText}>Remove Extension</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={styles.modalButton}
-                  onPress={() => handleExtensionAddition(data.find(team => team.owner_id === expandedTeam))}
-                >
-                  <Text style={styles.modalButtonText}>Add Extension</Text>
-                </TouchableOpacity>
+                expandedTeam.extension_left > 0 && (
+                  <TouchableOpacity
+                    style={styles.modalButton}
+                    onPress={() => handleExtensionAddition(expandedTeam)}
+                  >
+                    <Text style={styles.modalButtonText}>Add Extension</Text>
+                  </TouchableOpacity>
+                )
               )}
 
               <TouchableOpacity onPress={closePlayerModal}>
@@ -436,7 +443,6 @@ const styles = StyleSheet.create({
   },
   iconOffset: {
     marginLeft: 5, // Adds space between the icon and text
-    paddingTop: 1 // Nudges the icon down slightly to align with text
   },
   modalOverlay: {
     flex: 1,
