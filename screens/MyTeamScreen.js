@@ -113,10 +113,10 @@ const confirmAction = async () => {
               {`$${player.amount}`}
             </Text>
             </View>
-            {player.contract !== 0 && (
-              <View style={styles.row}> {/* Wrapping contract info */}
-                <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                <Text style={styles.icon}>{` ${player.contract} `}</Text>
+            <View style={styles.contractInfoContainer}>
+            {player.taxi && (
+              <View style={styles.row}> {/* Wrapping taxi info */}
+                <Ionicons name="car-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
               </View>
             )}
             {player.extension_contract_length && (
@@ -136,11 +136,13 @@ const confirmAction = async () => {
                 <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
               </View>
             )}
-            {player.taxi && (
-              <View style={styles.row}> {/* Wrapping taxi info */}
-                <Ionicons name="car-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
+            {player.contract !== 0 && (
+              <View style={styles.row}> {/* Wrapping contract info */}
+                <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
+                <Text style={styles.icon}>{` ${player.contract} `}</Text>
               </View>
             )}
+            </View>
           </View>
         </View>
         </TouchableOpacity>
@@ -310,16 +312,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 10,
   },
-    row: {
+  row: {
     flexDirection: 'row', // Aligns items horizontally
     alignItems: 'center', // Vertically centers items
+    justifyContent: 'space-between', // Ensures space between amount and contract info
   },
   iconOffset: {
     marginLeft: 5, // Adds space between the icon and text
   },
   amountContainer: {
-    alignItems: 'center'
-  }
+    flex: 1, // Takes up available space
+    alignItems: 'flex-start', // Aligns amount to the left
+  },
+  contractInfoContainer: {
+    flexDirection: 'row', // Aligns contract items in a row
+    justifyContent: 'flex-end', // Aligns contract items to the right
+    flex: 1,
+    marginRight: 10
+  },
 });
 
 export default MyTeamScreen;
