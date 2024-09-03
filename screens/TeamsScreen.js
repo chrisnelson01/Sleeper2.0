@@ -71,7 +71,7 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      const result = await makeApiCall('http://127.0.0.1:5000/api/amnesty', 'DELETE', payload);
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/amnesty', 'DELETE', payload);
 
       if (result) {
         delete selectedPlayer.amnesty;
@@ -90,7 +90,7 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      const result = await makeApiCall('http://127.0.0.1:5000/api/amnesty', 'POST', payload);
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/amnesty', 'POST', payload);
 
       if (result) {
         selectedPlayer.amnesty = true;
@@ -108,7 +108,7 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      const result = await makeApiCall('http://127.0.0.1:5000/api/rfa', 'DELETE', payload);
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/rfa', 'DELETE', payload);
 
       if (result) {
         delete selectedPlayer.rfa_contract_length
@@ -127,7 +127,7 @@ const TeamsScreen = ({ route }) => {
         team_id: team.owner_id,
         contract_length: leagueData['rfa_length']
       };
-      const result = await makeApiCall('http://127.0.0.1:5000/api/rfa', 'POST', payload);
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/rfa', 'POST', payload);
 
       if (result) {
         selectedPlayer.rfa_contract_length = leagueData['extension_length']; // Assuming a default length of 1 for RFA
@@ -145,7 +145,7 @@ const TeamsScreen = ({ route }) => {
         player_id: selectedPlayer.player_id,
         team_id: team.owner_id,
       };
-      const result = await makeApiCall('http://127.0.0.1:5000/api/extension', 'DELETE', payload);
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/extension', 'DELETE', payload);
 
       if (result) {
         delete selectedPlayer.extension_contract_length
@@ -164,7 +164,7 @@ const TeamsScreen = ({ route }) => {
         team_id: team.owner_id,
         contract_length: leagueData['extension_length']
       };
-      const result = await makeApiCall('http://127.0.0.1:5000/api/extension', 'POST', payload);
+      const result = await makeApiCall('https://chrisnel01.pythonanywhere.com/api/extension', 'POST', payload);
 
       if (result) {
         selectedPlayer.extension_contract_length = leagueData['extension_length'];

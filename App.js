@@ -77,7 +77,7 @@ function App() {
 
   const fetchContracts = async (leagueId) => {
     try {
-      const response = await fetch(`http://127.0.0.1:5000/api/contracts/${leagueId}`);
+      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/contracts/${leagueId}`);
       const jsonData = await response.json();
       setContracts(jsonData);
     } catch (error) {
@@ -87,7 +87,7 @@ function App() {
 
   const fetchLeagueData = async (leagueId, userId) => {
     try {
-      const response = await fetch(`http://127.0.0.1:5000/api/rosters/${leagueId}/${userId}`);
+      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rosters/${leagueId}/${userId}`);
       const jsonData = await response.json();
       setData(jsonData['team_info']);
       setLeagueData(jsonData['league_info']);

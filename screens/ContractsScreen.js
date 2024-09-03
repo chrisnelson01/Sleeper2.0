@@ -58,7 +58,7 @@ const ContractsScreen = ({ route, navigation }) => {
     }
 
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/contracts', {
+      const response = await fetch('https://chrisnel01.pythonanywhere.com/api/contracts', {
         method: 'PUT',  // Only allow updating existing contracts
         headers: {
           'Content-Type': 'application/json',
