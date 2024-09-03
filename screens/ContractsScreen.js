@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert, TouchableOpacity, Image, Picker, Modal } from 'react-native';
 
 const ContractsScreen = ({ route, navigation }) => {
-  const { playerData, leagueId, contracts } = route.params;  // Use the passed contracts from App.js
+  const { playerData, leagueId, contracts, leagueData } = route.params;  // Use the passed contracts from App.js
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -14,8 +14,9 @@ const ContractsScreen = ({ route, navigation }) => {
     setSearchQuery(query);
     if (query) {
       const filtered = playerData
-        .flatMap((team) => team.players)  // Flatten all players into one list
+        .flatMap((team) => team.players || [])  // Flatten all players into one list
         .filter((player) =>
+          player.contract > 0 &&  // Only include players with a contract
           `${player.first_name} ${player.last_name}`.toLowerCase().includes(query.toLowerCase())
         )
         .slice(0, 3);  // Limit to 3 players
@@ -30,6 +31,13 @@ const ContractsScreen = ({ route, navigation }) => {
     return contracts.some((contract) => Number(contract.player_id) === Number(player.player_id));
   };
 
+  // Find the team of the selected player
+  const findTeamForPlayer = (playerId) => {
+    return playerData
+      .flatMap((team) => team.team_info || []) // Flatten all teams into one list
+      .find((team) => team.players && team.players.some((player) => player.player_id === playerId));
+  };
+
   // Update the contract length for a player
   const updateContract = async () => {
     if (!selectedPlayer || contractLength === null) {
@@ -37,18 +45,30 @@ const ContractsScreen = ({ route, navigation }) => {
       return;
     }
 
-    const isUpdate = playerHasContract(selectedPlayer);  // Check if player has a contract
+    if (!playerHasContract(selectedPlayer)) {
+      Alert.alert('Error', 'This player does not have an existing contract.');
+      return;
+    }
+
+    const team = findTeamForPlayer(selectedPlayer.player_id);
+
+    if (!team) {
+      Alert.alert('Error', 'Unable to determine the team for the selected player.');
+      return;
+    }
+
     try {
-      const method = isUpdate ? 'PUT' : 'POST';  // Use PUT for updates, POST for new entries
-      const response = await fetch('https://chrisnel01.pythonanywhere.com/api/contracts', {
-        method: method,
+      const response = await fetch('http://127.0.0.1:5000/api/contracts', {
+        method: 'PUT',  // Only allow updating existing contracts
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           league_id: leagueId,  // Use leagueId from route params
           player_id: selectedPlayer.player_id,
+          team_id: team.owner_id,  // Use the team ID from the team information
           contract_length: contractLength,
+          current_season: leagueData['current_season'] // Assuming current season is the current year
         }),
       });
 
@@ -124,6 +144,11 @@ const ContractsScreen = ({ route, navigation }) => {
             <Picker.Item label="3" value={3} />
             <Picker.Item label="4" value={4} />
             <Picker.Item label="5" value={5} />
+            <Picker.Item label="6" value={6} />
+            <Picker.Item label="7" value={7} />
+            <Picker.Item label="8" value={8} />
+            <Picker.Item label="9" value={9} />
+            <Picker.Item label="10" value={10} />
           </Picker>
 
           {/* Add more space between the picker and button */}
@@ -159,7 +184,6 @@ const ContractsScreen = ({ route, navigation }) => {
     </View>
   );
 };
-
 
 // Styles for the screen and modal
 const styles = StyleSheet.create({

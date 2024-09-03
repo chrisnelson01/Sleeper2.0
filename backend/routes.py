@@ -16,41 +16,40 @@ async def get_data_route(league_id, user_id):
     try:
         start_time = time.time()
 
-        # Fetch all previous season league ids starting from 2023
-        previous_league_ids = await get_all_previous_season_league_ids(user_id)
         
         league_info = get_league_info(league_id)
         
+        # Fetch all previous season league ids starting from 2023
+        previous_league_ids = await get_all_previous_season_league_ids(user_id, league_id)
         # Fetch relevant data concurrently
-        response, users, current_drafts = await asyncio.gather(
+        response, users, current_drafts, current_season = await asyncio.gather(
             fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/rosters"),
             fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/users"),
-            fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/drafts")
+            fetch_data(f"https://api.sleeper.app/v1/league/{league_id}/drafts"),
+            fetch_data(f"https://api.sleeper.app/v1/state/nfl")
         )
-
-        # Fetch previous draft data if available
-        previous_draft_data = []
-        for year, league_ids in previous_league_ids.items():
-            for prev_league_id in league_ids:
-                previous_drafts = await fetch_data(f"https://api.sleeper.app/v1/league/{prev_league_id}/drafts")
-                if previous_drafts:
-                    previous_draft_id = previous_drafts[0]['draft_id']
-                    draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{previous_draft_id}/picks")
-                    previous_draft_data.extend(draft_data)
-        
         # Fetch current draft data
         current_draft_id = current_drafts[0]['draft_id']
         current_draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{current_draft_id}/picks")
+        current_season_year = int(current_season.get('season'))
+        # Fetch previous draft data if available
+        previous_draft_data = []
+        for prev_league_id in previous_league_ids:
+            previous_drafts = await fetch_data(f"https://api.sleeper.app/v1/league/{prev_league_id}/drafts")
+            if previous_drafts:
+                previous_draft_id = previous_drafts[0]['draft_id']
+                draft_data = await fetch_data(f"https://api.sleeper.app/v1/draft/{previous_draft_id}/picks")
+                previous_draft_data.extend(draft_data)
+    
+        
         
         # Merge current draft data with previous seasons' draft data
         merged_draft_data = merge_draft_data(current_draft_data, previous_draft_data)
-
         # Fetch and merge waiver data for all previous seasons
         waiver_data = []
-        for year, league_ids in previous_league_ids.items():
-            for prev_league_id in league_ids:
-                prev_waiver_data = await get_waiver_data_async(league_id, prev_league_id)
-                waiver_data.extend(prev_waiver_data)
+        for prev_league_id in previous_league_ids:
+            prev_waiver_data = await get_waiver_data_async(league_id, prev_league_id)
+            waiver_data.extend(prev_waiver_data)
         
         # Fetch current season waiver data
         current_waiver_data = await get_waiver_data_async(league_id, None)
@@ -79,7 +78,8 @@ async def get_data_route(league_id, user_id):
                                      "extension_length" : league_info['extension_length'],
                                      "rfa_length" : league_info['rfa_length'],
                                      "taxi_length" : league_info['taxi_length'],
-                                     "rollover_every" : league_info['rollover_every']
+                                     "rollover_every" : league_info['rollover_every'],
+                                     "current_season" : int(current_season_year)
                                      }
         # Fetch amnesty, RFA, and extension limits using SQLAlchemy ORM
         amnesty_data = AmnestyTeam.query.filter_by(league_id=league_id).all()
@@ -95,7 +95,8 @@ async def get_data_route(league_id, user_id):
         filtered_player_data = [{'player_id': player_info['metadata']['player_id'],
                                  'first_name': player_info['metadata']['first_name'],
                                  'last_name': player_info['metadata']['last_name'],
-                                 'amount': player_info['metadata']['amount']}
+                                 'amount': player_info['metadata']['amount'],
+                                 'position': player_info['metadata']['position']}
                                 for player_info in merged_draft_data]
 
         for entry in response:
@@ -117,9 +118,18 @@ async def get_data_route(league_id, user_id):
                     (draft_pick for draft_pick in filtered_player_data if draft_pick['player_id'] == player), None)
 
                 if player_info:
-                    # Get the contract length from the database or use 1-year default if no contract found
-                    contract_length = Contract.query.filter_by(league_id=league_id, player_id=player).first()
-                    player_info['contract'] = calculate_years_remaining_from_creation(contract_length.timestamp,contract_length.contract_length) if contract_length else 0
+                    # Fetch the contract
+                    contract = Contract.query.filter_by(league_id=league_id, player_id=player, team_id=owner_id).first()
+
+                    # Check for an existing contract
+                    if contract:
+                        # Fetch the amnesty player (use .first() to get a single result or None)
+                        amnesty_player = AmnestyPlayer.query.filter_by(contract_id=contract.id).first()
+                        # Update player_info with contract length, considering amnesty
+                        player_info['contract'] = 0 if amnesty_player else (contract.contract_length - (current_season_year - contract.season))
+                    else:
+                        # If no contract exists, set the contract info to 0
+                        player_info['contract'] = 0
 
                     # Add player amount to total
                     total_amount += int(player_info['amount'])
@@ -139,7 +149,8 @@ async def get_data_route(league_id, user_id):
                                     'first_name': waiver_player.get('first_name', 'Unknown'),
                                     'last_name': waiver_player.get('last_name', 'Unknown'),
                                     'amount': '1',
-                                    'contract': 0
+                                    'contract': 0,
+                                    'position': waiver_player.get('position', 'Unknown'),
                                 }
                                 total_amount += 1
                                 players_with_id_and_amount.append(player_with_default)
@@ -150,7 +161,7 @@ async def get_data_route(league_id, user_id):
                         player_info['contract'] = calculate_years_remaining_from_creation(league_info['creation_date'], league_info_list['taxi_length'])
                         player_info['taxi'] = True
 
-            players_with_id_and_amount = get_amnesty_rfa_extension_data(players_with_id_and_amount, league_id)
+            players_with_id_and_amount = get_amnesty_rfa_extension_data(players_with_id_and_amount, league_id, int(owner_id), current_season_year)
             # Add amnesty, RFA, and extension counts to the roster data
             roster_info.append({
                 'owner_id': owner_id,
@@ -176,6 +187,7 @@ async def get_data_route(league_id, user_id):
 
 
 
+
 # Add or Update Contract Endpoint
 @api.route('/api/contracts', methods=['POST', 'PUT'])
 def add_or_update_contract():
@@ -183,17 +195,18 @@ def add_or_update_contract():
         data = request.get_json()
         league_id = data.get('league_id')
         player_id = data.get('player_id')
+        team_id = data.get('team_id')
         contract_length = data.get('contract_length')
-
+        current_season = data.get('current_season')
         if not league_id or not player_id or not contract_length:
-            return jsonify({'error': 'Missing league_id, player_id, or contract_length'}), 400
+            return jsonify({'error': 'Missing league_id, player_id, team_id, or contract_length'}), 400
 
-        contract = Contract.query.filter_by(league_id=league_id, player_id=player_id).first()
+        contract = Contract.query.filter_by(league_id=league_id, player_id=player_id, team_id=team_id).first()
 
         if request.method == 'POST':
             if contract:
                 return jsonify({'error': 'Contract already exists'}), 400
-            new_contract = Contract(league_id=league_id, player_id=player_id, contract_length=contract_length)
+            new_contract = Contract(league_id=league_id, player_id=player_id, team_id=team_id, contract_length=contract_length, season=current_season)
             db.session.add(new_contract)
             db.session.commit()
             return jsonify({'message': 'Contract added successfully'}), 201
@@ -202,8 +215,7 @@ def add_or_update_contract():
             if not contract:
                 return jsonify({'error': 'Contract does not exist'}), 404
             contract.contract_length = contract_length
-            contract.timestamp = datetime.date.today().strftime('%Y-%m-%d')
-            logging.info(contract.timestamp)
+            contract.season = current_season
             db.session.commit()
             return jsonify({'message': 'Contract updated successfully'}), 200
 
@@ -295,14 +307,14 @@ def add_or_update_amnesty():
         league_id = data.get('league_id')
         player_id = data.get('player_id')
         team_id = data.get('team_id')
-
+        season = data.get('current_season')
         if not league_id or not team_id:
             return jsonify({'error': 'Missing league_id or team_id'}), 400
 
         # Fetch the amnesty record for the player
-        amnesty = AmnestyPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
+        amnesty = AmnestyPlayer.query.filter_by(league_id=league_id, player_id=player_id, team_id=team_id).first()
         amnesty_team = AmnestyTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
-
+        contract = Contract.query.filter_by(league_id=league_id, team_id=team_id, player_id=player_id).first()
         if not amnesty_team:
             return jsonify({'error': 'Amnesty data does not exist for team'}), 404
 
@@ -313,8 +325,10 @@ def add_or_update_amnesty():
             if amnesty_team.amnesty_left <= 0:
                 return jsonify({'error': 'No amnesty actions left for the team'}), 400
             
+            if not contract: 
+                return jsonify({'error': 'No contract data found for the player'}), 404
             # Add new amnesty for the player
-            new_amnesty = AmnestyPlayer(league_id=league_id, player_id=player_id)
+            new_amnesty = AmnestyPlayer(league_id=league_id, player_id=player_id, team_id=team_id, contract_id=contract.id, season=season)
             db.session.add(new_amnesty)
             
             # Decrease the team's amnesty_left by 1
@@ -355,12 +369,14 @@ def add_or_update_rfa():
         player_id = data.get('player_id')
         team_id = data.get('team_id')
         contract_length = data.get('contract_length')
+        season = data.get('current_season')
         if not league_id or not team_id:
             return jsonify({'error': 'Missing league_id or team_id'}), 400
 
         # Fetch the RFA record for the player
         rfa = RfaPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
         rfa_team = RfaTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
+        contract = Contract.query.filter_by(league_id=league_id, team_id=team_id, player_id=player_id).first()
         
         if not rfa_team:
             return jsonify({'error': 'RFA data does not exist for team'}), 404
@@ -371,9 +387,10 @@ def add_or_update_rfa():
             
             if rfa_team.rfa_left <= 0:
                 return jsonify({'error': 'No RFA actions left for the team'}), 400
-            
+            if not contract: 
+                return jsonify({'error': 'No contract data found for the player'}), 404
             # Add new RFA for the player
-            new_rfa = RfaPlayer(league_id=league_id, player_id=player_id, contract_length=contract_length)
+            new_rfa = RfaPlayer(league_id=league_id, player_id=player_id, team_id=team_id, contract_id=contract.id, contract_length=contract_length, season=season)
             db.session.add(new_rfa)
             
             # Decrease the team's rfa_left by 1
@@ -415,13 +432,14 @@ def add_or_update_extension():
         player_id = data.get('player_id')
         team_id = data.get('team_id')
         contract_length = data.get('contract_length')
+        season = data.get('current_season')
         if not league_id or not team_id:
             return jsonify({'error': 'Missing league_id or team_id'}), 400
 
         # Fetch the extension record for the player
         extension = ExtensionPlayer.query.filter_by(league_id=league_id, player_id=player_id).first()
         extension_team = ExtensionTeam.query.filter_by(league_id=league_id, team_id=team_id).first()
-
+        contract = Contract.query.filter_by(league_id=league_id, team_id=team_id, player_id=player_id).first()
         if not extension_team:
             return jsonify({'error': 'Extension data does not exist for team'}), 404
 
@@ -431,9 +449,10 @@ def add_or_update_extension():
             
             if extension_team.extension_left <= 0:
                 return jsonify({'error': 'No extension actions left for the team'}), 400
-            
+            if not contract: 
+                return jsonify({'error': 'No contract data found for the player'}), 404
             # Add new extension for the player
-            new_extension = ExtensionPlayer(league_id=league_id, player_id=player_id, contract_length=contract_length)
+            new_extension = ExtensionPlayer(league_id=league_id, player_id=player_id, team_id=team_id, contract_id= contract.id, contract_length=contract_length, season=season)
             db.session.add(new_extension)
             
             # Decrease the team's extension_left by 1

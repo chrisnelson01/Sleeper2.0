@@ -1,8 +1,8 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { View, StyleSheet } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 
-export default function NavBar({ navigation, route }) {
+export default function NavBar({ navigation, route, isOwner }) {
   const handleIconPress = (screenName) => {
     navigation.navigate(screenName);
   };
@@ -27,19 +27,20 @@ export default function NavBar({ navigation, route }) {
         color={route.name === 'Future' ? 'white' : 'grey'}
         size={28}
       />
-      <Ionicons
-        name="create"
-        onPress={() => handleIconPress('Contracts')}
-        color={route.name === 'Contracts' ? 'white' : 'grey'}
-        size={30}
-      />
+      {/* {isOwner && (
+        <Ionicons
+          name="create"
+          onPress={() => handleIconPress('Contracts')}
+          color={route.name === 'Contracts' ? 'white' : 'grey'}
+          size={30}
+        />
+      )} */}
       <Ionicons
         name="person-add"
         onPress={() => handleIconPress('Trade')}
         color={route.name === 'Trade' ? 'white' : 'grey'}
         size={30}
       />
-      {/* New Settings Icon */}
       <Ionicons
         name="settings"
         onPress={() => handleIconPress('Settings')}

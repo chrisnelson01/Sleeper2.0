@@ -1,82 +1,118 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import PlayerOptionsModal from '../components/PlayerOptionsModal'; 
+import ContractLengthModal from '../components/ContractLengthModal';
+import ConfirmationModal from '../components/ConfirmationModal'; // Import the confirmation modal component
+
 const MyTeamScreen = ({ route, navigation }) => {
   const { team, leagueId, leagueData } = route.params;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [confirmationModalVisible, setConfirmationModalVisible] = useState(false);
   const [confirmationType, setConfirmationType] = useState(null);
+  const [contractLength, setContractLength] = useState(''); 
+  const [contractLengthModalVisible, setContractLengthModalVisible] = useState(false);
+
   if (!team) {
     return <Text style={styles.errorText}>Team data not found</Text>;
   }
+
   const handleRfaAction = () => {
     setConfirmationType('RFA');
+    setConfirmationModalVisible(true);
   };
 
   const handleAmnestyAction = () => {
     setConfirmationType('Amnesty');
+    setConfirmationModalVisible(true);
   };
 
   const handleExtendAction = () => {
     setConfirmationType('Extend');
+    setConfirmationModalVisible(true);
   };
 
-const confirmAction = async () => {
-  console.log(selectedPlayer);
-  console.log(team.owner_id);
-  console.log(leagueId);
-  try {
-    let endpoint;
-    let body;
+  const handleAddContractAction = () => {
+    setModalVisible(false); // Close player options modal
+    setContractLength(''); // Reset contract length
+    setContractLengthModalVisible(true); // Show contract length modal
+  };
 
-    if (confirmationType === 'RFA') {
-      endpoint = 'https://chrisnel01.pythonanywhere.com/api/rfa';
-      body = JSON.stringify({
-        league_id: leagueId,
-        player_id: selectedPlayer.player_id,
-        team_id: team.owner_id,
-        contract_length: leagueData['rfa_length'],
-      });
-      Alert.alert('RFA Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} added as RFA.`);
-    } else if (confirmationType === 'Amnesty') {
-      endpoint = 'https://chrisnel01.pythonanywhere.com/api/amnesty';
-      body = JSON.stringify({
-        league_id: leagueId,
-        player_id: selectedPlayer.player_id,
-        team_id: team.owner_id,
-      });
-      Alert.alert('Amnesty Applied', `${selectedPlayer.first_name} ${selectedPlayer.last_name} was amnestied.`);
-    } else if (confirmationType === 'Extend') {
-      endpoint = 'https://chrisnel01.pythonanywhere.com/api/extensions';
-      body = JSON.stringify({
-        league_id: leagueId,
-        player_id: selectedPlayer.player_id,
-        contract_length: leagueData['extension_length'],
-        team_id: team.owner_id,
-      });
-      Alert.alert('Player Extended', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extended.`);
+  const handleConfirmContractLength = () => {
+    setContractLengthModalVisible(false); // Close contract length modal
+    setConfirmationType('AddContract'); // Set confirmation type for contract addition
+    setConfirmationModalVisible(true); // Show confirmation modal
+  };
+
+  const handleConfirmAction = async () => {
+    setConfirmationModalVisible(false); // Close confirmation modal
+    try {
+      let endpoint;
+      let body;
+
+      if (confirmationType === 'RFA') {
+        endpoint = 'http://127.0.0.1:5000/api/rfa';
+        body = JSON.stringify({
+          league_id: leagueId,
+          player_id: selectedPlayer.player_id,
+          team_id: team.owner_id,
+          contract_length: leagueData['rfa_length'],
+          season: leagueData['current_season']
+        });
+        Alert.alert('RFA Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} added as RFA.`);
+      } else if (confirmationType === 'Amnesty') {
+        endpoint = 'http://127.0.0.1:5000/api/amnesty';
+        body = JSON.stringify({
+          league_id: leagueId,
+          player_id: selectedPlayer.player_id,
+          team_id: team.owner_id,
+          season: leagueData['current_season']
+        });
+        Alert.alert('Amnesty Applied', `${selectedPlayer.first_name} ${selectedPlayer.last_name} was amnestied.`);
+      } else if (confirmationType === 'Extend') {
+        endpoint = 'http://127.0.0.1:5000/api/extensions';
+        body = JSON.stringify({
+          league_id: leagueId,
+          player_id: selectedPlayer.player_id,
+          contract_length: leagueData['extension_length'],
+          team_id: team.owner_id,
+          season: leagueData['current_season']
+        });
+        Alert.alert('Player Extended', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extended.`);
+      } else if (confirmationType === 'AddContract') {
+        endpoint = 'http://127.0.0.1:5000/api/contracts';
+        body = JSON.stringify({
+          league_id: leagueId,
+          player_id: selectedPlayer.player_id,
+          team_id: team.owner_id,
+          contract_length: contractLength,
+          current_season: leagueData['current_season'],
+        });
+        Alert.alert('Contract Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} received a new contract.`);
+      }
+
+      if (endpoint && body) {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body,
+        });
+
+        // Fetch updated league data after action
+        await route.params.fetchLeagueData(leagueId, team.owner_id);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'An error occurred while processing the request.');
     }
 
-    if (endpoint && body) {
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body,
-      });
-
-      // Fetch updated league data after action
-      await route.params.fetchLeagueData(leagueId, team.owner_id);
-    }
-  } catch (error) {
-    console.error(error);
-    Alert.alert('Error', 'An error occurred while processing the request.');
-  }
-  navigation.replace('MyTeam')
-  setModalVisible(false);
-  setConfirmationType(null);
-};
+    navigation.replace('MyTeam');
+    setModalVisible(false);
+    setConfirmationType(null);
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -97,8 +133,9 @@ const confirmAction = async () => {
             },
           ]}
           onPress={() => {
-            setSelectedPlayer(player);
-            setModalVisible(true);
+            setSelectedPlayer(player); // Set the selected player
+            setModalVisible(true); // Open player options modal
+
           }}
         >
           <Image
@@ -106,104 +143,76 @@ const confirmAction = async () => {
             style={styles.playerImage}
           />
           <View style={styles.playerInfo}>
-          <Text style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
-          <View style={styles.row}> {/* Aligning items side by side */}
-            <View style={styles.amountContainer}>
-            <Text style={styles.playerAmount}>
-              {`$${player.amount}`}
-            </Text>
-            </View>
-            <View style={styles.contractInfoContainer}>
-            {player.taxi && (
-              <View style={styles.row}> {/* Wrapping taxi info */}
-                <Ionicons name="car-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
+            <Text style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
+            <View style={styles.row}>
+              <View style={styles.amountContainer}>
+                <Text style={styles.playerAmount}>
+                  {`$${player.amount}`}
+                </Text>
               </View>
-            )}
-            {player.extension_contract_length && (
-              <View style={styles.row}> {/* Wrapping extension info */}
-                <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
-                <Text style={styles.icon}>{` ${player.extension_contract_length} `}</Text>
+              <View style={styles.contractInfoContainer}>
+                {player.taxi && (
+                  <View style={styles.row}>
+                    <Ionicons name="car-outline" size={16} color="#fff" style={styles.iconOffset} />
+                  </View>
+                )}
+                {player.extension_contract_length && (
+                  <View style={styles.row}>
+                    <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} />
+                    <Text style={styles.icon}>{` ${player.extension_contract_length} `}</Text>
+                  </View>
+                )}
+                {player.rfa_contract_length && (
+                  <View style={styles.row}>
+                    <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} />
+                    <Text style={styles.icon}>{` ${player.rfa_contract_length} `}</Text>
+                  </View>
+                )}
+                {player.amnesty && (
+                  <View style={styles.row}>
+                    <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} />
+                  </View>
+                )}
+                {player.contract !== 0 && (
+                  <View style={styles.row}>
+                    <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} />
+                    <Text style={styles.icon}>{` ${player.contract} `}</Text>
+                  </View>
+                )}
               </View>
-            )}
-            {player.rfa_contract_length && (
-              <View style={styles.row}> {/* Wrapping RFA info */}
-                <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
-                <Text style={styles.icon}>{` ${player.rfa_contract_length} `}</Text>
-              </View>
-            )}
-            {player.amnesty && (
-              <View style={styles.row}> {/* Wrapping amnesty info */}
-                <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
-              </View>
-            )}
-            {player.contract !== 0 && (
-              <View style={styles.row}> {/* Wrapping contract info */}
-                <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                <Text style={styles.icon}>{` ${player.contract} `}</Text>
-              </View>
-            )}
             </View>
           </View>
-        </View>
         </TouchableOpacity>
       ))}
-
-      {/* Modal for RFA, Amnesty, and Extend Actions */}
-      <Modal
-        transparent={true}
+      
+      {/* Player Options Modal for RFA, Amnesty, Extend, and Add Contract Actions */}
+      <PlayerOptionsModal
         visible={modalVisible}
-        onRequestClose={() => {
-          
-          setModalVisible(false);
-          setConfirmationType(null);
-        }}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {confirmationType ? (
-              <>
-                <Text style={styles.modalTitle}>Confirm {confirmationType}</Text>
-                <Text style={styles.modalMessage}>
-                  {`Are you sure you want to ${confirmationType === 'RFA' ? 'add' : confirmationType === 'Amnesty' ? 'amnesty' : 'extend'} ${selectedPlayer?.first_name} ${selectedPlayer?.last_name}?`}
-                </Text>
-                <TouchableOpacity style={styles.modalButton} onPress={confirmAction}>
-                  <Text style={styles.modalButtonText}>Yes</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalButton} onPress={() => setConfirmationType(null)}>
-                  <Text style={styles.modalButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalTitle}>Player Options</Text>
-                {selectedPlayer && (
-                  <Text style={styles.modalMessage}>
-                    {`What would you like to do with ${selectedPlayer.first_name} ${selectedPlayer.last_name}?`}
-                  </Text>
-                )}
-                {team.rfa_left > 0 && (
-                  <TouchableOpacity style={styles.modalButton} onPress={handleRfaAction}>
-                    <Text style={styles.modalButtonText}>Add as RFA</Text>
-                  </TouchableOpacity>
-                )}
-                {team.amnesty_left > 0 && (
-                  <TouchableOpacity style={styles.modalButton} onPress={handleAmnestyAction}>
-                    <Text style={styles.modalButtonText}>Amnesty Player</Text>
-                  </TouchableOpacity>
-                )}
-                {team.extension_left > 0 && (
-                  <TouchableOpacity style={styles.modalButton} onPress={handleExtendAction}>
-                    <Text style={styles.modalButtonText}>Extend Player</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+        onRfa={handleRfaAction}
+        onAmnesty={handleAmnestyAction}
+        onExtend={handleExtendAction}
+        onAddContract={handleAddContractAction}
+        selectedPlayer={selectedPlayer}
+      />
+
+      {/* Contract Length Modal */}
+      <ContractLengthModal
+        visible={contractLengthModalVisible}
+        onClose={() => setContractLengthModalVisible(false)}
+        contractLength={contractLength}
+        setContractLength={setContractLength}
+        onConfirmContractLength={handleConfirmContractLength}
+        selectedPlayer={selectedPlayer}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        visible={confirmationModalVisible}
+        onClose={() => setConfirmationModalVisible(false)}
+        onConfirm={handleConfirmAction}
+        message={`Are you sure you want to ${confirmationType === 'AddContract' ? `add a ${contractLength} year contract to ${selectedPlayer.first_name} ${selectedPlayer.last_name}? This cannot be undone` : `${confirmationType === 'RFA' ? 'add this player as an RFA?' : confirmationType === 'Amnesty' ? 'apply amnesty?' : 'extend the player\'s contract?'} This cannot be undone`}`}
+      />
     </ScrollView>
   );
 };
@@ -257,78 +266,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'white',
     minWidth: 30,
-    textAlign: 'left'
+    textAlign: 'left',
   },
   icon: {
     fontSize: 14,
     color: 'white',
-    textAlign: 'left'
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconOffset: {
+    marginRight: 5,
+  },
+  amountContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  contractInfoContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   errorText: {
     color: 'red',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    width: '85%',
-    padding: 20,
-    backgroundColor: '#181c28',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: 'white',
-  },
-  modalMessage: {
-    fontSize: 18,
-    marginBottom: 20,
-    textAlign: 'center',
-    color: 'white',
-  },
-  modalButton: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 10,
-    borderRadius: 5,
-    width: '80%', // Set width as percentage
-    alignItems: 'center',
-    marginVertical: 10, // Add margin between buttons
-  },
-  modalButtonText: {
-    color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 10,
-  },
-  row: {
-    flexDirection: 'row', // Aligns items horizontally
-    alignItems: 'center', // Vertically centers items
-    justifyContent: 'space-between', // Ensures space between amount and contract info
-  },
-  iconOffset: {
-    marginLeft: 5, // Adds space between the icon and text
-  },
-  amountContainer: {
-    flex: 1, // Takes up available space
-    alignItems: 'flex-start', // Aligns amount to the left
-  },
-  contractInfoContainer: {
-    flexDirection: 'row', // Aligns contract items in a row
-    justifyContent: 'flex-end', // Aligns contract items to the right
-    flex: 1,
-    marginRight: 5
+    textAlign: 'center',
   },
 });
 
