@@ -185,9 +185,9 @@ const TeamsScreen = ({ route }) => {
             return '#FF4C4C';
           case 'RB':
             return '#4CAF50';
-          case 'TE':
-            return '#2196F3';
           case 'WR':
+            return '#2196F3';
+          case 'TE':
             return '#FF9800';
           default:
             return 'grey'; // Default color for undefined positions
