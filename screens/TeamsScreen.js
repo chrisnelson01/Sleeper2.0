@@ -179,111 +179,132 @@ const TeamsScreen = ({ route }) => {
     const avatarUrl = team.avatar
       ? `https://sleepercdn.com/avatars/thumbs/${team.avatar}`
       : null;
-
+    const getPositionColor = (position) => {
+        switch (position) {
+          case 'QB':
+            return '#FF4C4C';
+          case 'RB':
+            return '#4CAF50';
+          case 'TE':
+            return '#2196F3';
+          case 'WR':
+            return '#FF9800';
+          default:
+            return 'grey'; // Default color for undefined positions
+        }
+      };
+        // Sort players by position
+    const sortedPlayers = team.players.sort((a, b) => {
+      const positionOrder = ['QB', 'RB', 'WR', 'TE'];
+      return positionOrder.indexOf(a.position) - positionOrder.indexOf(b.position);
+    });
     return (
-      <View style={styles.teamContainer}>
-        <TouchableOpacity
-          onPress={() => toggleTeamExpansion(team)}
-          style={styles.teamHeader}
-        >
-          <View style={styles.teamInfo}>
-            {avatarUrl && (
-              <Image
-                source={{ uri: avatarUrl }}
-                style={styles.avatarImage}
-              />
-            )}
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>{team.display_name}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center'}}>
-            {team.rfa_left > 0 && (
-              <Ionicons name="ribbon-outline" size={18} color="#fff" style={styles.iconOffset} /> // RFA Icon
-            )}
-            {team.extension_left > 0 && (
-              <Ionicons name="add-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Extension Icon
-            )}
-            {team.amnesty_left > 0 && (
-              <Ionicons name="close-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Amnesty Icon
-            )}
-            <Text style={{ color: 'white' , marginRight: 10}}>{`   $${team.total_amount}`}</Text>
-            <Ionicons
-              name={expandedTeam === team ? 'chevron-up-outline' : 'chevron-down-outline'}
-              size={24}
-              color="white"
-              style={{marginRight: 5}}
-            />
-          </View>
-        </TouchableOpacity>
-        {expandedTeam === team && (
-          <View style={styles.playersContainer}>
-            {team.players.map((player) => (
-              <TouchableOpacity
-                key={player.player_id}
-                onPress={() => isOwner && openPlayerModal(player)}
-                style={[
-                  styles.playerBox,
-                  {
-                    backgroundColor: '#264b63',
-                  },
-                ]}
-              >
+        <View style={styles.teamContainer}>
+          <TouchableOpacity
+            onPress={() => toggleTeamExpansion(team)}
+            style={styles.teamHeader}
+          >
+            <View style={styles.teamInfo}>
+              {avatarUrl && (
                 <Image
-                  source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
-                  style={styles.playerImage}
+                  source={{ uri: avatarUrl }}
+                  style={styles.avatarImage}
                 />
-                <View style={styles.playerInfo}>
-                  <View style={styles.amountContainer}>
-                  <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
-                  </View>
-                  <View style={styles.row}>
-                    {player.taxi && (
-                      <View style={styles.row}>
-                        <Ionicons name="car-outline" size={18} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
+              )}
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>{team.display_name}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center'}}>
+              {team.rfa_left > 0 && (
+                <Ionicons name="ribbon-outline" size={18} color="#fff" style={styles.iconOffset} /> // RFA Icon
+              )}
+              {team.extension_left > 0 && (
+                <Ionicons name="add-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Extension Icon
+              )}
+              {team.amnesty_left > 0 && (
+                <Ionicons name="close-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Amnesty Icon
+              )}
+              <Text style={{ color: 'white' , marginRight: 10}}>{`   $${team.total_amount}`}</Text>
+              <Ionicons
+                name={expandedTeam === team ? 'chevron-up-outline' : 'chevron-down-outline'}
+                size={24}
+                color="white"
+                style={{marginRight: 5}}
+              />
+            </View>
+          </TouchableOpacity>
+          {expandedTeam === team && (
+            <View style={styles.playersContainer}>
+              {sortedPlayers.map((player) => (
+                <TouchableOpacity
+                  key={player.player_id}
+                  onPress={() => isOwner && openPlayerModal(player)}
+                  style={[
+                    styles.playerBox,
+                    {
+                      backgroundColor: '#264b63',
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
+                    style={styles.playerImage}
+                  />
+                  <View style={styles.playerInfo}>
+                    <View style={styles.amountContainer}>
+                      <View style={[styles.positionBox, { backgroundColor: getPositionColor(player.position) }]}>
+                        <Text style={styles.positionText}>{player.position}</Text>
                       </View>
-                    )}
-                                        {player.extension_contract_length && (
-                      <View style={styles.row}>
-                        <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
-                        <Text style={{color: 'white'}}>
-                          {`${player.extension_contract_length}  `}
-                        </Text>
-                      </View>
-                    )}
+                      <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
+                    </View>
+                    <View style={styles.row}>
+                      {player.taxi && (
+                        <View style={styles.row}>
+                          <Ionicons name="car-outline" size={18} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
+                        </View>
+                      )}
+                      {player.extension_contract_length && (
+                        <View style={styles.row}>
+                          <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
+                          <Text style={{color: 'white'}}>
+                            {`${player.extension_contract_length}  `}
+                          </Text>
+                        </View>
+                      )}
 
-                    {player.rfa_contract_length && (
-                      <View style={styles.row}>
-                        <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
-                        <Text style={{color: 'white'}}>
-                          {`${player.rfa_contract_length}  `}
-                        </Text>
-                      </View>
-                    )}
+                      {player.rfa_contract_length && (
+                        <View style={styles.row}>
+                          <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
+                          <Text style={{color: 'white'}}>
+                            {`${player.rfa_contract_length}  `}
+                          </Text>
+                        </View>
+                      )}
 
-                    {player.amnesty && (
-                      <View style={styles.row}>
-                        <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
-                      </View>
-                    )}
+                      {player.amnesty && (
+                        <View style={styles.row}>
+                          <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
+                        </View>
+                      )}
 
-                    {player.contract !== 0 && (
-                      <View style={styles.row}>
-                        <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                        <Text style={{color: 'white'}}>
-                          {`${player.contract}  `}
-                        </Text>
-                      </View>
-                    )}
-                  <View style={styles.amountContainer}>
-                    <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
+                      {player.contract !== 0 && (
+                        <View style={styles.row}>
+                          <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
+                          <Text style={{color: 'white'}}>
+                            {`${player.contract}  `}
+                          </Text>
+                        </View>
+                      )}
+                    <View style={styles.amountContainer}>
+                      <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
+                    </View>
+                    </View>
                   </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
-    );
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      );
   };
 
   return (
@@ -506,7 +527,20 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   amountContainer: {
+    flexDirection: 'row',
     alignItems: 'flex-end', // Align the amount text to the end of the container
+  },
+  positionBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  positionText: {
+    color: 'white',
+    fontSize: 9,
   },
 });
 

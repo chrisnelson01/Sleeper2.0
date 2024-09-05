@@ -104,3 +104,11 @@ class LeagueInfo(db.Model):
     rollover_every = db.Column(db.Integer, nullable=False)
     creation_date= db.Column(db.Text, nullable=False)
     
+class LocalPlayer(db.Model):
+    __tablename__ = 'local_players'
+    
+    player_id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String)
+    last_name = db.Column(db.String)
+    position = db.Column(db.String)
+    

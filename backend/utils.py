@@ -74,10 +74,14 @@ async def get_waiver_data_async(league_id, previous_league_id=None):
     
     return current_league_waivers + previous_league_waivers
 
+def flatten_list(nested_list):
+    """Flatten a list of lists."""
+    return [item for sublist in nested_list for item in sublist]
+
 def merge_draft_data(current_draft, previous_draft):
     # Create a dictionary for quick lookup of previous draft players by player_id
+    previous_draft = flatten_list(previous_draft)
     previous_draft_map = {player['player_id']: player for player in previous_draft}
-    
     # Initialize the merged draft list
     merged_draft = []
 
