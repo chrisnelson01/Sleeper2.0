@@ -116,10 +116,10 @@ async def get_data_route(league_id, user_id):
             for player in player_ids:
                 player_info = next((pi for pi in filtered_player_data if pi['player_id'] == player), None)
                 if player_info:
-                    contracts = Contract.query.filter_by(league_id=league_id, player_id=player).all()
+                    contracts = Contract.query.filter_by(league_id=league_id, player_id=player).order_by(Contract.id.desc())
                     for contract in contracts:
                         amnesty_player = AmnestyPlayer.query.filter_by(contract_id=contract.id).first()
-                        if not amnesty_player and contract.contract_length != 0:
+                        if not amnesty_player and contract:
                             player_info['contract'] = contract.contract_length - (int(current_season.get('season')) - contract.season)
                             break               
                         player_info['contract'] = 0
