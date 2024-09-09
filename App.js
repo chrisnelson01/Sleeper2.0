@@ -50,15 +50,30 @@ function App() {
     }
   }, [selectedLeagueId, userId]);
 
+  useEffect(() => {
+    let timeout;
+    if (isLoading) {
+      // Set a timeout for 30 seconds
+      timeout = setTimeout(async () => {
+        // If still loading after 30 seconds, clear cache and redirect to login
+        await handleLogout();
+      }, 30000); // 30 seconds
+    }
+
+    return () => clearTimeout(timeout); // Clear timeout on cleanup
+  }, [isLoading]);
+
   const fetchUserId = async (username) => {
     setIsLoading(true);
     try {
       const response = await fetch(`https://api.sleeper.app/v1/user/${username}`);
+      if (!response.ok) throw new Error("Failed to fetch user ID");
       const userInfo = await response.json();
       await AsyncStorage.setItem('userId', userInfo.user_id);
       return userInfo.user_id;
     } catch (error) {
       console.error("Error fetching user ID:", error);
+      await handleLogout(); // Redirect to login on error
       return null;
     } finally {
       setIsLoading(false);
@@ -68,32 +83,38 @@ function App() {
   const fetchLeagues = async (userId) => {
     try {
       const response = await fetch(`https://api.sleeper.app/v1/user/${userId}/leagues/nfl/2024`);
+      if (!response.ok) throw new Error("Failed to fetch leagues");
       const jsonData = await response.json();
       setLeagues(jsonData);
     } catch (error) {
       console.error("Error fetching leagues:", error);
+      await handleLogout(); // Redirect to login on error
     }
   };
 
   const fetchContracts = async (leagueId) => {
     try {
       const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/contracts/${leagueId}`);
+      if (!response.ok) throw new Error("Failed to fetch contracts");
       const jsonData = await response.json();
       setContracts(jsonData);
     } catch (error) {
       console.error("Error fetching contracts:", error);
+      await handleLogout(); // Redirect to login on error
     }
   };
 
   const fetchLeagueData = async (leagueId, userId) => {
     try {
       const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rosters/${leagueId}/${userId}`);
+      if (!response.ok) throw new Error("Failed to fetch league data");
       const jsonData = await response.json();
       setData(jsonData['team_info']);
       setLeagueData(jsonData['league_info']);
       await fetchContracts(leagueId);
     } catch (error) {
       console.error("Error fetching league data:", error);
+      await handleLogout(); // Redirect to login on error
     } finally {
       setIsLoading(false);
     }
@@ -168,7 +189,7 @@ function App() {
           <ScrollView contentContainerStyle={styles.scrollView}>
             <Stack.Navigator
               screenOptions={{
-                header: (props) => <NavBar {...props} isOwner={myTeam['is_owner']}/>,
+                header: (props) => <NavBar {...props} isOwner={myTeam['is_owner']} />,
                 title: "Sleeper2.0"
               }}
             >
@@ -176,13 +197,6 @@ function App() {
               <Stack.Screen name="Teams" component={TeamsScreen} initialParams={{ data, isOwner: myTeam['is_owner'], leagueData: leagueData, leagueId: selectedLeagueId }} />
               <Stack.Screen name="Future" component={FutureScreen} initialParams={{ data }} />
               <Stack.Screen name="Trade" component={TradeScreen} initialParams={{ playerData }} />
-              {/* {myTeam['is_owner'] && (
-                <Stack.Screen
-                  name="Contracts"
-                  component={ContractsScreen}
-                  initialParams={{ playerData, leagueId: selectedLeagueId, contracts, userId, fetchContracts, fetchLeagueData, leagueData: leagueData }}
-                />
-              )} */}
               <Stack.Screen
                 name="Settings"
                 component={SettingsScreen}
