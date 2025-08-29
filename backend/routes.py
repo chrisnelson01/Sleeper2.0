@@ -2,12 +2,21 @@ import logging
 import time
 import asyncio
 from flask import Blueprint, jsonify, request
-from utils import calculate_years_remaining_from_creation, fetch_data, get_amnesty_rfa_extension_data, get_league_info, get_waiver_data_async, get_all_previous_season_league_ids, load_local_players_data, merge_draft_data
-from models import *
-from extensions import db  # Assuming 'db' is from an 'extensions' module where SQLAlchemy is initialized
 
-api = Blueprint('api', __name__)
+from backend.utils import (
+    calculate_years_remaining_from_creation,
+    fetch_data,
+    get_amnesty_rfa_extension_data,
+    get_league_info,
+    get_waiver_data_async,
+    get_all_previous_season_league_ids,
+    load_local_players_data,
+    merge_draft_data,
+)
+from backend.models import *  # (ok for now; consider explicit imports later)
+from backend.extensions import db
 
+api = Blueprint("api", __name__, url_prefix="/api")  # <-- important
 logging.basicConfig(level=logging.DEBUG)
 
 @api.route('/api/rosters/<league_id>/<user_id>')

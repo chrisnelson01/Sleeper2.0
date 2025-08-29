@@ -35,3 +35,18 @@ yarn-error.*
 *.tsbuildinfo
 
 .vercel
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+
+# Node / RN
+node_modules/
+.expo/
+
+
+# Local DBs
+*.db
+*.sqlite

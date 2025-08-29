@@ -14,6 +14,8 @@ import MyTeamScreen from './screens/MyTeamScreen';
 import NavBar from './components/NavBar';
 import ContractsScreen from './screens/ContractsScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import { API_BASE_URL } from './constants';
+import { SLEEPER_API_URL } from './constants';
 
 const Stack = createStackNavigator();
 
@@ -66,7 +68,7 @@ function App() {
   const fetchUserId = async (username) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`https://api.sleeper.app/v1/user/${username}`);
+      const response = await fetch(`${SLEEPER_API_URL}/user/${username}`);
       if (!response.ok) throw new Error("Failed to fetch user ID");
       const userInfo = await response.json();
       await AsyncStorage.setItem('userId', userInfo.user_id);
@@ -82,7 +84,7 @@ function App() {
 
   const fetchLeagues = async (userId) => {
     try {
-      const response = await fetch(`https://api.sleeper.app/v1/user/${userId}/leagues/nfl/2024`);
+      const response = await fetch(`${SLEEPER_API_URL}/user/${userId}/leagues/nfl/2024`);
       if (!response.ok) throw new Error("Failed to fetch leagues");
       const jsonData = await response.json();
       setLeagues(jsonData);
@@ -94,7 +96,7 @@ function App() {
 
   const fetchContracts = async (leagueId) => {
     try {
-      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/contracts/${leagueId}`);
+      const response = await fetch(`${API_BASE_URL}/contracts/${leagueId}`);
       if (!response.ok) throw new Error("Failed to fetch contracts");
       const jsonData = await response.json();
       setContracts(jsonData);
@@ -106,7 +108,7 @@ function App() {
 
   const fetchLeagueData = async (leagueId, userId) => {
     try {
-      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rosters/${leagueId}/${userId}`);
+      const response = await fetch(`${API_BASE_URL}/rosters/${leagueId}/${userId}`);
       if (!response.ok) throw new Error("Failed to fetch league data");
       const jsonData = await response.json();
       setData(jsonData['team_info']);

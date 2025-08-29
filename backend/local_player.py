@@ -1,4 +1,4 @@
-from extensions import db
+from backend.extensions import db
 import json
 import sqlalchemy as sa
 from sqlalchemy import create_engine, Column, Integer, String, exists

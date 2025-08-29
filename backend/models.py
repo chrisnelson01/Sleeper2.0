@@ -1,4 +1,4 @@
-from extensions import db
+from backend.extensions import db
 from sqlalchemy import func # Import db from extensions.py
 from sqlalchemy.orm import relationship
 from sqlalchemy import ForeignKey

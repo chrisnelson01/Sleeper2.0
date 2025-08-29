@@ -5,7 +5,7 @@ import os
 import time
 from aiohttp import ClientSession
 import logging
-from models import AmnestyPlayer, ExtensionPlayer, LeagueInfo, RfaPlayer
+from backend.models import AmnestyPlayer, ExtensionPlayer, LeagueInfo, RfaPlayer
 
 logging.basicConfig(level=logging.INFO)
 

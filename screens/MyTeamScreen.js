@@ -4,6 +4,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import PlayerOptionsModal from '../components/PlayerOptionsModal'; 
 import ContractLengthModal from '../components/ContractLengthModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { API_BASE_URL } from '../constants';
 
 const positionColors = {
   QB: '#FF4C4C',  // Red
@@ -66,7 +67,7 @@ const MyTeamScreen = ({ route, navigation }) => {
       let body;
 
       if (confirmationType === 'RFA') {
-        endpoint = 'https://chrisnel01.pythonanywhere.com/api/rfa';
+        endpoint = `${API_BASE_URL}/rfa`;
         body = JSON.stringify({
           league_id: leagueId,
           player_id: selectedPlayer.player_id,
@@ -76,7 +77,7 @@ const MyTeamScreen = ({ route, navigation }) => {
         });
         Alert.alert('RFA Added', `${selectedPlayer.first_name} ${selectedPlayer.last_name} added as RFA.`);
       } else if (confirmationType === 'Amnesty') {
-        endpoint = 'https://chrisnel01.pythonanywhere.com/api/amnesty';
+        endpoint = `${API_BASE_URL}/amnesty`;
         body = JSON.stringify({
           league_id: leagueId,
           player_id: selectedPlayer.player_id,
@@ -85,7 +86,7 @@ const MyTeamScreen = ({ route, navigation }) => {
         });
         Alert.alert('Amnesty Applied', `${selectedPlayer.first_name} ${selectedPlayer.last_name} was amnestied.`);
       } else if (confirmationType === 'Extend') {
-        endpoint = 'https://chrisnel01.pythonanywhere.com/api/extensions';
+        endpoint = `${API_BASE_URL}/extensions`;
         body = JSON.stringify({
           league_id: leagueId,
           player_id: selectedPlayer.player_id,
@@ -95,7 +96,7 @@ const MyTeamScreen = ({ route, navigation }) => {
         });
         Alert.alert('Player Extended', `${selectedPlayer.first_name} ${selectedPlayer.last_name} extended.`);
       } else if (confirmationType === 'AddContract') {
-        endpoint = 'https://chrisnel01.pythonanywhere.com/api/contracts';
+        endpoint = `${API_BASE_URL}/contracts`;
         body = JSON.stringify({
           league_id: leagueId,
           player_id: selectedPlayer.player_id,

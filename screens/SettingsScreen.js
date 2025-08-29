@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Picker, StyleSheet, Text, SafeAreaView, TouchableOpacity, Modal, ScrollView, TextInput, ActivityIndicator, Dimensions, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../constants';
 
 const SettingsScreen = ({ route, navigation }) => {
   const { leagues, selectedLeagueId, handleLogout, handleSelectLeague, isOwner } = route.params;
@@ -42,7 +43,7 @@ const SettingsScreen = ({ route, navigation }) => {
     const fetchRules = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rules/${selectedLeague}`);
+        const response = await fetch(`${API_BASE_URL}/rules/${selectedLeague}`);
         const data = await response.json();
 
         if (response.ok) {
@@ -78,7 +79,7 @@ const SettingsScreen = ({ route, navigation }) => {
   const handleUpdateRules = async () => {
     try {
       const updatedRules = rules.map((rule, index) => ({ ...rule, rule_text: editedRules[index] }));
-      const response = await fetch(`https://chrisnel01.pythonanywhere.com/api/rules/${selectedLeague}`, {
+      const response = await fetch(`${API_BASE_URL}/rules/${selectedLeague}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedRules),

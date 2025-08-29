@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert, TouchableOpacity, Image, Picker, Modal } from 'react-native';
+import { API_BASE_URL } from '../constants';
 
 const ContractsScreen = ({ route, navigation }) => {
   const { playerData, leagueId, contracts, leagueData } = route.params;  // Use the passed contracts from App.js
@@ -58,7 +59,7 @@ const ContractsScreen = ({ route, navigation }) => {
     }
 
     try {
-      const response = await fetch('https://chrisnel01.pythonanywhere.com/api/contracts', {
+      const response = await fetch(`${API_BASE_URL}/contracts`, {
         method: 'PUT',  // Only allow updating existing contracts
         headers: {
           'Content-Type': 'application/json',
