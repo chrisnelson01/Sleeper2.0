@@ -1,35 +1,81 @@
-# Sleeper2.0/backend/app.py
+#!/usr/bin/env python
+"""Entry point for the Sleeper backend."""
+import sys
+import os
+
+# Add the app directory to the path so backend is importable
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from flask import Flask
 from flask_cors import CORS
+import logging
+from sqlalchemy import text
 
-from backend.config import Config
-from backend.extensions import db
-from backend.routes import api  # <-- your Blueprint from routes.py
-import os, logging
+from .config import Config
+from .extensions import db
+from .routes import api
+from . import models
 
 def create_app():
     app = Flask(__name__)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
     app.config.from_object(Config)
+    
+    # Setup logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
+    # Initialize database
     db.init_app(app)
-
-    # 👇 add this
+    
     with app.app_context():
-        logging.getLogger().setLevel(logging.INFO)
-        app.logger.info(f"DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
-        app.logger.info(f"DB path exists: {os.path.exists(app.config['DB_PATH'])}")
-        if os.path.exists(app.config['DB_PATH']):
-            app.logger.info(f"DB size (bytes): {os.path.getsize(app.config['DB_PATH'])}")
+        logger.info(f"DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        db.create_all()
 
-        from backend import models   # ensure models import
-        db.create_all()              # creates missing tables only
+        def ensure_column(table: str, column: str, column_type: str):
+            try:
+                result = db.session.execute(text(f"PRAGMA table_info({table})"))
+                columns = [row[1] for row in result.fetchall()]
+                if column not in columns:
+                    logger.info(f"Adding {column} column to {table} table")
+                    db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}"))
+                    db.session.commit()
+            except Exception as e:
+                logger.warning(f"Could not ensure {column} column on {table}: {e}")
 
+        ensure_column("contract", "contract_amount", "INTEGER")
+        ensure_column("contract", "created_at", "DATETIME")
+        ensure_column("amnesty_player", "created_at", "DATETIME")
+        ensure_column("rfa_players", "created_at", "DATETIME")
+        ensure_column("extension_players", "created_at", "DATETIME")
+        league_info_columns = {
+            "is_auction": "INTEGER",
+            "is_keeper": "INTEGER",
+            "money_per_team": "INTEGER",
+            "keepers_allowed": "INTEGER",
+            "rfa_allowed": "INTEGER",
+            "amnesty_allowed": "INTEGER",
+            "extension_allowed": "INTEGER",
+            "extension_length": "INTEGER",
+            "max_contract_length": "INTEGER",
+            "rfa_length": "INTEGER",
+            "taxi_length": "INTEGER",
+            "rollover_every": "INTEGER",
+            "creation_date": "TEXT",
+        }
+        for column, column_type in league_info_columns.items():
+            ensure_column("league_info", column, column_type)
+    
+    # Register blueprints
     app.register_blueprint(api)
+    
     return app
 
-# WSGI entrypoint
 app = create_app()
 
 if __name__ == "__main__":
-    # Local dev run (only when invoked directly)
-    app.run(debug=True)
+    if os.getenv("DEBUGPY", "0") == "1":
+        import debugpy
+        debugpy.listen(("0.0.0.0", 5679))
+        # debugpy.wait_for_client()  # uncomment if you want to block until attached
+    app.run(debug=True, host='0.0.0.0', port=5000)

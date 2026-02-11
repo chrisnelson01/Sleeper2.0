@@ -2,12 +2,19 @@ from datetime import datetime
 import json
 import asyncio
 import os
-import time
-from aiohttp import ClientSession
 import logging
-from backend.models import AmnestyPlayer, ExtensionPlayer, LeagueInfo, RfaPlayer
+from typing import List, Dict, Set, Tuple
 
-logging.basicConfig(level=logging.INFO)
+from aiohttp import ClientSession
+from .models import (
+    AmnestyPlayer, ExtensionPlayer, RfaPlayer,
+    Contract, LocalPlayer, LeagueInfo
+)
+from .extensions import db
+from sqlalchemy import text
+from .sleeper_service import sleeper_service
+
+logger = logging.getLogger(__name__)
 
 async def fetch_data(url):
     try:
@@ -151,6 +158,69 @@ def get_league_info(league_id):
     else:
         return {}
 
+def get_rosters_response(league_id: str, user_id: str):
+    """High-level helper that gathers all necessary data and returns
+    a processed rosters response ready for the API routes.
+
+    This function centralizes the orchestration: resolves the league
+    chain, current season, fetches rosters/users/drafts/draft_picks and
+    delegates to the roster processing logic.
+    """
+    try:
+        logger.info(f"utils.get_rosters_response: resolving league chain for {league_id}")
+
+        # Resolve league chain via Sleeper service (returns newest->oldest)
+        try:
+            league_chain = sleeper_service.get_league_chain(str(league_id)) or [str(league_id)]
+        except Exception:
+            league_chain = [str(league_id)]
+
+        current_league_id = str(league_chain[0]) if league_chain else str(league_id)
+
+        # Current season
+        try:
+            nfl_state = sleeper_service.get_current_nfl_state() or {}
+            current_season = int(nfl_state.get('league_season', nfl_state.get('season', 2026)))
+        except Exception:
+            current_season = 2026
+
+        # Fetch authoritative league data
+        rosters = sleeper_service.get_rosters(current_league_id) or []
+        users = sleeper_service.get_users(current_league_id) or []
+        # Draft picks and transactions are resolved inside RosterService
+        draft_picks = None
+        transactions = None
+
+        # Delegate to the roster processing implementation in RosterService.
+        # Import locally to avoid circular import at module import time.
+        from .roster_service import RosterService
+
+        response = RosterService.get_rosters_response(
+            league_id=current_league_id,
+            user_id=user_id or '',
+            rosters=rosters,
+            users=users,
+            draft_picks=draft_picks,
+            current_season=current_season,
+            transactions=transactions
+        )
+
+        # Ensure returned structure is a dict
+        if isinstance(response, tuple) and len(response) > 0 and isinstance(response[0], dict):
+            response = response[0]
+
+        # Attach resolved metadata for frontend convenience
+        if isinstance(response, dict):
+            response.setdefault('resolved_league_id', str(current_league_id))
+            response.setdefault('league_chain', [str(x) for x in league_chain])
+            response.setdefault('current_season', current_season)
+
+        return response
+
+    except Exception as e:
+        logger.exception(f"Error in utils.get_rosters_response: {e}")
+        raise
+
 def calculate_years_remaining_from_creation(date, years):
     # Convert the input date string to a datetime object
     creation_date = datetime.strptime(date, "%Y-%m-%d")
@@ -167,3 +237,443 @@ def calculate_years_remaining_from_creation(date, years):
     years_remaining = years - years_passed
 
     return max(years_remaining, 0)  # Ensure that the remaining years are not negative
+
+async def get_all_season_drafts(league_ids: List[str]) -> Dict[str, List[Dict]]:
+    """Get draft data for all seasons in parallel"""
+    
+    draft_tasks = {
+        league_id: sleeper_service.get_drafts(league_id)
+        for league_id in league_ids
+    }
+    
+    results = {}
+    for league_id, task in draft_tasks.items():
+        drafts = await task
+        results[league_id] = drafts
+    
+    return results
+
+async def get_all_draft_picks(draft_ids: List[str]) -> Dict[str, List[Dict]]:
+    """Get pick data for multiple drafts in parallel"""
+    
+    pick_tasks = {
+        draft_id: sleeper_service.get_draft_picks(draft_id)
+        for draft_id in draft_ids
+    }
+    
+    results = {}
+    for draft_id, task in pick_tasks.items():
+        picks = await task
+        results[draft_id] = picks
+    
+    return results
+
+async def get_all_season_transactions(league_ids: List[str], rounds: int = 18) -> Dict[str, List[Dict]]:
+    """Get all transactions for multiple leagues in parallel"""
+    
+    tasks = {}
+    for league_id in league_ids:
+        for round_num in range(rounds):
+            key = f"{league_id}_{round_num}"
+            tasks[key] = sleeper_service.get_transactions(league_id, round_num)
+    
+    results = {}
+    for key, task in tasks.items():
+        data = await task
+        league_id = key.rsplit('_', 1)[0]
+        if league_id not in results:
+            results[league_id] = []
+        results[league_id].extend(data)
+    
+    return results
+
+def merge_draft_data(drafts_by_league: Dict[str, List[Dict]]) -> Dict[str, Dict]:
+    """Merge draft data from all seasons, current year takes precedence"""
+    
+    player_map = {}
+    
+    # Process in reverse (oldest to newest)
+    for league_id, draft_list in drafts_by_league.items():
+        if not draft_list:
+            continue
+        
+        picks = draft_list.get('picks', []) if isinstance(draft_list, dict) else []
+        
+        for pick in picks:
+            if not isinstance(pick, dict):
+                continue
+            
+            player_id = str(pick.get('player_id', ''))
+            if player_id and player_id not in player_map:
+                player_map[player_id] = {
+                    'player_id': player_id,
+                    'first_name': pick.get('metadata', {}).get('first_name', ''),
+                    'last_name': pick.get('metadata', {}).get('last_name', ''),
+                    'position': pick.get('metadata', {}).get('position', ''),
+                    'amount': pick.get('metadata', {}).get('amount', 0),
+                    'season': pick.get('season', 0)
+                }
+    
+    return player_map
+
+def get_contract_value(player_id: int, league_id: int, current_season: int) -> int:
+    """Get remaining contract value for a player"""
+
+    # Ensure contract_amount column exists for older DBs
+    try:
+        result = db.session.execute(text("PRAGMA table_info(contract)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "contract_amount" not in columns:
+            db.session.execute(text("ALTER TABLE contract ADD COLUMN contract_amount INTEGER"))
+            db.session.commit()
+    except Exception as e:
+        logger.warning(f"Could not ensure contract_amount column: {e}")
+    
+    contracts = Contract.query.filter_by(
+        league_id=league_id,
+        player_id=player_id
+    ).order_by(Contract.id.desc()).all()
+    
+    for contract in contracts:
+        amnesty = AmnestyPlayer.query.filter_by(contract_id=contract.id).first()
+        if not amnesty:
+            remaining = contract.contract_length - (current_season - contract.season)
+            return max(0, remaining)
+    
+    return 0
+
+def get_league_info(league_id: int) -> Dict:
+    """Get cached league configuration"""
+    
+    league_info = LeagueInfo.query.filter_by(league_id=league_id).first()
+    if not league_info:
+        return {}
+    
+    return {
+        'league_id': league_info.league_id,
+        'is_auction': bool(league_info.is_auction),
+        'is_keeper': bool(league_info.is_keeper),
+        'money_per_team': league_info.money_per_team,
+        'keepers_allowed': league_info.keepers_allowed,
+        'rfa_allowed': league_info.rfa_allowed,
+        'amnesty_allowed': league_info.amnesty_allowed,
+        'extension_allowed': league_info.extension_allowed,
+        'extension_length': league_info.extension_length,
+        'max_contract_length': league_info.max_contract_length,
+        'rfa_length': league_info.rfa_length,
+        'taxi_length': league_info.taxi_length,
+        'rollover_every': league_info.rollover_every,
+        'creation_date': league_info.creation_date
+    }
+
+def calculate_years_remaining(creation_date: str, target_years: int) -> int:
+    """Calculate remaining years from creation date"""
+    
+    try:
+        created = datetime.strptime(creation_date, "%Y-%m-%d")
+        today = datetime.today()
+        years_passed = today.year - created.year
+        
+        if (today.month, today.day) < (created.month, created.day):
+            years_passed -= 1
+        
+        return max(0, target_years - years_passed)
+    except Exception as e:
+        logger.error(f"Error calculating years: {e}")
+        return target_years
+
+
+# ============================================================================
+# League Chain Functions - Query contracts across all seasons in a league chain
+# ============================================================================
+
+def get_league_chain_ids(league_id: int) -> List[int]:
+    """
+    Get all league IDs in the chain for a given league (current or historical)
+    
+    Args:
+        league_id: Any league ID in the chain (current or historical)
+        
+    Returns:
+        List of league IDs in order from newest to oldest [current...original]
+    """
+    from .models import LeagueChain
+    import json
+    
+    try:
+        # Try to find by current_league_id or original_league_id
+        chain = LeagueChain.query.filter(
+            (LeagueChain.current_league_id == league_id) |
+            (LeagueChain.original_league_id == league_id)
+        ).first()
+        
+        if chain:
+            league_ids = json.loads(chain.league_ids)
+            logger.info(f"Found league chain for {league_id}: {league_ids}")
+            return league_ids
+        # If not found in league_chain table, resolve via Sleeper API and persist
+        try:
+            league_ids = sleeper_service.get_league_chain(str(league_id)) or [str(league_id)]
+            league_ids_int = [int(lid) for lid in league_ids]
+            if league_ids_int:
+                original_league_id = league_ids_int[-1]
+                current_league_id = league_ids_int[0]
+                payload = json.dumps(league_ids_int)
+                existing = LeagueChain.query.filter_by(original_league_id=original_league_id).first()
+                if existing:
+                    existing.current_league_id = current_league_id
+                    existing.league_ids = payload
+                    existing.last_updated = db.func.now()
+                    db.session.add(existing)
+                else:
+                    db.session.add(LeagueChain(
+                        original_league_id=original_league_id,
+                        current_league_id=current_league_id,
+                        league_ids=payload
+                    ))
+                db.session.commit()
+                logger.info(f"Resolved and stored league chain for {league_id}: {league_ids_int}")
+                return league_ids_int
+        except Exception as e:
+            logger.warning(f"Failed to resolve league chain via Sleeper for {league_id}: {e}")
+
+        # Fallback to single league
+        logger.warning(f"No league chain found for league {league_id}, using single league")
+        return [league_id]
+    except Exception as e:
+        logger.error(f"Error getting league chain: {e}")
+        return [league_id]
+
+
+def get_all_contracts_in_chain(league_id: int, current_season: int = None) -> List[Dict]:
+    """
+    Get all contracts across all leagues in the chain
+    
+    Args:
+        league_id: Any league ID in the chain
+        current_season: Current NFL season for validity checking
+        
+    Returns:
+        List of contract dicts with contract info
+    """
+    from .models import Contract, AmnestyPlayer
+    import json
+    
+    if not current_season:
+        current_season = int(sleeper_service.get_current_nfl_state().get('season', 2026))
+    
+    # Get all league IDs in the chain
+    league_ids = get_league_chain_ids(league_id)
+    logger.info(f"Querying contracts across {len(league_ids)} leagues: {league_ids}")
+    
+    # Query contracts from all leagues in the chain
+    contracts = Contract.query.filter(Contract.league_id.in_(league_ids)).all()
+    
+    result = []
+    for contract in contracts:
+        # Check if amnestied
+        amnesty_records = AmnestyPlayer.query.filter_by(
+            contract_id=contract.id
+        ).all()
+        
+        # Calculate if active
+        contract_end_season = contract.season + contract.contract_length - 1
+        is_expired = current_season > contract_end_season
+        is_amnestied = bool(amnesty_records)
+        is_active = not is_expired and not is_amnestied
+        
+        result.append({
+            'id': contract.id,
+            'league_id': contract.league_id,
+            'player_id': contract.player_id,
+            'team_id': contract.team_id,
+            'contract_length': contract.contract_length,
+            'contract_start_season': contract.season,
+            'contract_end_season': contract_end_season,
+            'is_active': is_active,
+            'is_expired': is_expired,
+            'is_amnestied': is_amnestied
+        })
+    
+    logger.info(f"Found {len(result)} total contracts across all leagues in chain")
+    return result
+
+
+def get_all_amnestied_players_in_chain(league_id: int) -> List[Dict]:
+    """
+    Get all amnestied players across all leagues in the chain
+    
+    Args:
+        league_id: Any league ID in the chain
+        
+    Returns:
+        List of amnestied player records
+    """
+    from .models import AmnestyPlayer
+    
+    # Get all league IDs in the chain
+    league_ids = get_league_chain_ids(league_id)
+    logger.info(f"Querying amnestied players across {len(league_ids)} leagues")
+    
+    # Query amnesty records from all leagues in the chain
+    amnesty_players = AmnestyPlayer.query.filter(
+        AmnestyPlayer.league_id.in_(league_ids)
+    ).all()
+    
+    result = []
+    for amnesty in amnesty_players:
+        result.append({
+            'league_id': amnesty.league_id,
+            'player_id': amnesty.player_id,
+            'team_id': amnesty.team_id,
+            'contract_id': amnesty.contract_id,
+            'season': amnesty.season
+        })
+    
+    logger.info(f"Found {len(result)} amnestied players across all leagues")
+    return result
+
+
+def get_all_rfa_players_in_chain(league_id: int) -> List[Dict]:
+    """
+    Get all RFA players across all leagues in the chain
+    
+    Args:
+        league_id: Any league ID in the chain
+        
+    Returns:
+        List of RFA player records
+    """
+    from .models import RfaPlayer
+    
+    # Get all league IDs in the chain
+    league_ids = get_league_chain_ids(league_id)
+    logger.info(f"Querying RFA players across {len(league_ids)} leagues")
+    
+    # Query RFA records from all leagues in the chain
+    rfa_players = RfaPlayer.query.filter(
+        RfaPlayer.league_id.in_(league_ids)
+    ).all()
+    
+    result = []
+    for rfa in rfa_players:
+        result.append({
+            'league_id': rfa.league_id,
+            'player_id': rfa.player_id,
+            'team_id': rfa.team_id,
+            'contract_id': rfa.contract_id,
+            'contract_length': rfa.contract_length,
+            'season': rfa.season
+        })
+    
+    logger.info(f"Found {len(result)} RFA players across all leagues")
+    return result
+
+
+def get_all_extensions_in_chain(league_id: int) -> List[Dict]:
+    """
+    Get all contract extensions across all leagues in the chain
+    
+    Args:
+        league_id: Any league ID in the chain
+        
+    Returns:
+        List of extension records
+    """
+    from .models import ExtensionPlayer
+    
+    # Get all league IDs in the chain
+    league_ids = get_league_chain_ids(league_id)
+    logger.info(f"Querying extensions across {len(league_ids)} leagues")
+    
+    # Query extension records from all leagues in the chain
+    extensions = ExtensionPlayer.query.filter(
+        ExtensionPlayer.league_id.in_(league_ids)
+    ).all()
+    
+    result = []
+    for ext in extensions:
+        result.append({
+            'league_id': ext.league_id,
+            'player_id': ext.player_id,
+            'team_id': ext.team_id,
+            'contract_id': ext.contract_id,
+            'contract_length': ext.contract_length,
+            'season': ext.season
+        })
+    
+    logger.info(f"Found {len(result)} extensions across all leagues")
+    return result
+
+
+def get_player_contract_history(player_id: int, league_id: int) -> List[Dict]:
+    """
+    Get complete contract history for a player across all leagues in the chain
+    
+    Args:
+        player_id: Sleeper player ID
+        league_id: Any league ID in the chain
+        
+    Returns:
+        List of all contract-related records (contracts, amnesties, RFAs, extensions)
+    """
+    from .models import Contract, AmnestyPlayer, RfaPlayer, ExtensionPlayer
+    
+    # Get all league IDs in the chain
+    league_ids = get_league_chain_ids(league_id)
+    logger.info(f"Querying contract history for player {player_id} across {len(league_ids)} leagues")
+    
+    # Query all related records
+    contracts = Contract.query.filter(
+        Contract.player_id == player_id,
+        Contract.league_id.in_(league_ids)
+    ).all()
+    
+    amnesties = AmnestyPlayer.query.filter(
+        AmnestyPlayer.player_id == player_id,
+        AmnestyPlayer.league_id.in_(league_ids)
+    ).all()
+    
+    rfas = RfaPlayer.query.filter(
+        RfaPlayer.player_id == player_id,
+        RfaPlayer.league_id.in_(league_ids)
+    ).all()
+    
+    extensions = ExtensionPlayer.query.filter(
+        ExtensionPlayer.player_id == player_id,
+        ExtensionPlayer.league_id.in_(league_ids)
+    ).all()
+    
+    result = {
+        'player_id': player_id,
+        'contracts': [{
+            'id': c.id,
+            'league_id': c.league_id,
+            'team_id': c.team_id,
+            'contract_length': c.contract_length,
+            'season': c.season
+        } for c in contracts],
+        'amnesties': [{
+            'league_id': a.league_id,
+            'team_id': a.team_id,
+            'contract_id': a.contract_id,
+            'season': a.season
+        } for a in amnesties],
+        'rfas': [{
+            'league_id': r.league_id,
+            'team_id': r.team_id,
+            'contract_id': r.contract_id,
+            'contract_length': r.contract_length,
+            'season': r.season
+        } for r in rfas],
+        'extensions': [{
+            'league_id': e.league_id,
+            'team_id': e.team_id,
+            'contract_id': e.contract_id,
+            'contract_length': e.contract_length,
+            'season': e.season
+        } for e in extensions]
+    }
+    
+    logger.info(f"Player {player_id} contract history: {len(contracts)} contracts, {len(amnesties)} amnesties, {len(rfas)} RFAs, {len(extensions)} extensions")
+    return result
