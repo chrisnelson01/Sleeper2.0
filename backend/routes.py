@@ -18,12 +18,36 @@ from .utils import (
 )
 from .models import (
     Contract, LocalPlayer, AmnestyPlayer, RfaPlayer, 
-    ExtensionPlayer, AmnestyTeam, RfaTeam, ExtensionTeam, PlayerImage, LeagueInfo
+    ExtensionPlayer, AmnestyTeam, RfaTeam, ExtensionTeam, PlayerImage, LeagueInfo,
+    CommissionerActionLog
 )
 from .extensions import db
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 logger = logging.getLogger(__name__)
+
+def _get_team_player_from_rosters(league_id: int, team_id: int, player_id: int):
+    """Return (team, player) from current rosters if player is on the team."""
+    try:
+        response = get_rosters_response(str(league_id), "")
+        teams = response.get("team_info", []) if isinstance(response, dict) else []
+    except Exception:
+        teams = []
+
+    target_team = None
+    for team in teams:
+        if str(team.get("roster_id")) == str(team_id):
+            target_team = team
+            break
+
+    if not target_team:
+        return None, None
+
+    for player in target_team.get("players", []) or []:
+        if str(player.get("player_id")) == str(player_id):
+            return target_team, player
+
+    return target_team, None
 
 @api.errorhandler(Exception)
 def handle_error(error):
@@ -289,10 +313,14 @@ def get_league_activity(league_id: str):
             transactions.extend(tx)
 
         # Local contract-related events (no timestamps available, use season as proxy)
-        contracts = Contract.query.filter_by(league_id=int(league_id)).all()
-        amnesties = AmnestyPlayer.query.filter_by(league_id=int(league_id)).all()
-        rfas = RfaPlayer.query.filter_by(league_id=int(league_id)).all()
-        extensions = ExtensionPlayer.query.filter_by(league_id=int(league_id)).all()
+        league_chain_ids = get_league_chain_ids(league_id) or [int(league_id)]
+        contracts = Contract.query.filter(Contract.league_id.in_(league_chain_ids)).all()
+        amnesties = AmnestyPlayer.query.filter(AmnestyPlayer.league_id.in_(league_chain_ids)).all()
+        rfas = RfaPlayer.query.filter(RfaPlayer.league_id.in_(league_chain_ids)).all()
+        extensions = ExtensionPlayer.query.filter(ExtensionPlayer.league_id.in_(league_chain_ids)).all()
+        commissioner_logs = CommissionerActionLog.query.filter(
+            CommissionerActionLog.league_id.in_(league_chain_ids)
+        ).all()
         contracts_by_id = {c.id: c for c in contracts}
 
         local_player_ids = set()
@@ -304,6 +332,8 @@ def get_league_activity(league_id: str):
             local_player_ids.add(str(r.player_id))
         for e in extensions:
             local_player_ids.add(str(e.player_id))
+        for log in commissioner_logs:
+            local_player_ids.add(str(log.player_id))
 
         players_db = LocalPlayer.query.filter(LocalPlayer.player_id.in_(list(local_player_ids))).all() if local_player_ids else []
         local_players_map = {str(p.player_id): p for p in players_db}
@@ -406,6 +436,22 @@ def get_league_activity(league_id: str):
                 "season": e.season,
                 "created": _created_ts(e.created_at, e.season),
                 "label": f"Extension added: {_player_name(e.player_id)} ({e.contract_length}y)"
+            })
+        for log in commissioner_logs:
+            action_label = str(log.action_type or "action").upper()
+            op_label = "Added" if (log.operation or "").lower() == "add" else "Removed"
+            length_suffix = ""
+            if log.contract_length:
+                length_suffix = f" ({log.contract_length}y)"
+            local_events.append({
+                "type": "commissioner",
+                "player_id": log.player_id,
+                "team_id": log.team_id,
+                "contract_amount": log.contract_amount,
+                "contract_length": log.contract_length,
+                "season": log.season,
+                "created": _created_ts(log.created_at, log.season or 0),
+                "label": f"Commissioner {op_label}: {action_label} for {_player_name(log.player_id)}{length_suffix}",
             })
 
         def _tx_sort_key(tx):
@@ -781,6 +827,401 @@ def add_extension():
             "data": None
         }), 500
 
+@api.route('/commissioner/action', methods=['POST'])
+@cross_origin()
+def commissioner_add_action():
+    """Commissioner add contract-related actions for a specific team/player."""
+    try:
+        payload = request.get_json() or {}
+        league_id = payload.get("league_id")
+        team_id = payload.get("team_id")
+        player_id = payload.get("player_id")
+        action_type = payload.get("action_type")
+        contract_length = payload.get("contract_length")
+
+        if not league_id or not team_id or not player_id or not action_type:
+            return jsonify({
+                "status": "error",
+                "message": "league_id, team_id, player_id, and action_type are required",
+                "data": None
+            }), 400
+
+        league_id = int(league_id)
+        team_id = int(team_id)
+        player_id = int(player_id)
+        action_type = str(action_type).lower()
+
+        # Ensure player is currently on the team
+        _, roster_player = _get_team_player_from_rosters(league_id, team_id, player_id)
+        if roster_player is None:
+            return jsonify({
+                "status": "error",
+                "message": "Player is not currently on this team",
+                "data": None
+            }), 409
+
+        nfl_state = sleeper_service.get_current_nfl_state() or {}
+        current_season = int(nfl_state.get("league_season", 2026))
+
+        league_chain_ids = get_league_chain_ids(league_id)
+        if not league_chain_ids:
+            league_chain_ids = [league_id]
+        base_league_id = league_chain_ids[-1]
+        league_info = get_league_info(base_league_id) or {}
+
+        if action_type == "contract":
+            if not contract_length:
+                return jsonify({
+                    "status": "error",
+                    "message": "contract_length is required for contract action",
+                    "data": None
+                }), 400
+            contract_length = int(contract_length)
+            contract_amount = int(roster_player.get("amount") or 0)
+            new_contract = Contract(
+                league_id=league_id,
+                player_id=player_id,
+                team_id=team_id,
+                contract_amount=contract_amount,
+                contract_length=contract_length,
+                season=current_season
+            )
+            db.session.add(new_contract)
+            db.session.commit()
+            log_entry = CommissionerActionLog(
+                league_id=league_id,
+                team_id=team_id,
+                player_id=player_id,
+                action_type="contract",
+                operation="add",
+                contract_length=contract_length,
+                contract_amount=contract_amount,
+                season=current_season,
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+            result = {
+                "id": new_contract.id,
+                "league_id": league_id,
+                "team_id": team_id,
+                "player_id": player_id,
+                "contract_length": contract_length,
+                "contract_amount": contract_amount,
+            }
+        elif action_type == "rfa":
+            existing = RfaPlayer.query.filter(RfaPlayer.league_id.in_(league_chain_ids)) \
+                .filter(RfaPlayer.player_id == player_id) \
+                .filter(RfaPlayer.team_id == team_id) \
+                .first()
+            if existing:
+                return jsonify({
+                    "status": "error",
+                    "message": "RFA already exists for this player",
+                    "data": None
+                }), 409
+            rfa_length = int(contract_length or league_info.get("rfa_length") or 1)
+            contract = (
+                Contract.query.filter(Contract.player_id == player_id)
+                .filter(Contract.league_id.in_(league_chain_ids))
+                .order_by(Contract.id.desc())
+                .first()
+            )
+            if not contract:
+                return jsonify({
+                    "status": "error",
+                    "message": "No contract found for player",
+                    "data": None
+                }), 404
+            contract_id = contract.id
+            rfa = RfaPlayer(
+                league_id=league_id,
+                player_id=player_id,
+                team_id=team_id,
+                contract_id=contract_id,
+                contract_length=rfa_length,
+                season=current_season
+            )
+            db.session.add(rfa)
+            db.session.commit()
+            log_entry = CommissionerActionLog(
+                league_id=league_id,
+                team_id=team_id,
+                player_id=player_id,
+                action_type="rfa",
+                operation="add",
+                contract_length=rfa_length,
+                season=current_season,
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+            result = {
+                "league_id": league_id,
+                "team_id": team_id,
+                "player_id": player_id,
+                "contract_length": rfa_length,
+            }
+        elif action_type == "amnesty":
+            existing = AmnestyPlayer.query.filter(AmnestyPlayer.league_id.in_(league_chain_ids)) \
+                .filter(AmnestyPlayer.player_id == player_id) \
+                .filter(AmnestyPlayer.team_id == team_id) \
+                .first()
+            if existing:
+                return jsonify({
+                    "status": "error",
+                    "message": "Amnesty already exists for this player",
+                    "data": None
+                }), 409
+            contract = (
+                Contract.query.filter(Contract.player_id == player_id)
+                .filter(Contract.league_id.in_(league_chain_ids))
+                .order_by(Contract.id.desc())
+                .first()
+            )
+            if not contract:
+                return jsonify({
+                    "status": "error",
+                    "message": "No contract found for player",
+                    "data": None
+                }), 404
+            contract_id = contract.id
+            amnesty = AmnestyPlayer(
+                league_id=league_id,
+                player_id=player_id,
+                team_id=team_id,
+                contract_id=contract_id,
+                season=current_season
+            )
+            db.session.add(amnesty)
+            db.session.commit()
+            log_entry = CommissionerActionLog(
+                league_id=league_id,
+                team_id=team_id,
+                player_id=player_id,
+                action_type="amnesty",
+                operation="add",
+                season=current_season,
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+            result = {
+                "league_id": league_id,
+                "team_id": team_id,
+                "player_id": player_id,
+            }
+        elif action_type == "extension":
+            existing = ExtensionPlayer.query.filter(ExtensionPlayer.league_id.in_(league_chain_ids)) \
+                .filter(ExtensionPlayer.player_id == player_id) \
+                .filter(ExtensionPlayer.team_id == team_id) \
+                .first()
+            if existing:
+                return jsonify({
+                    "status": "error",
+                    "message": "Extension already exists for this player",
+                    "data": None
+                }), 409
+            extension_length = int(contract_length or league_info.get("extension_length") or 1)
+            contract = (
+                Contract.query.filter(Contract.player_id == player_id)
+                .filter(Contract.league_id.in_(league_chain_ids))
+                .order_by(Contract.id.desc())
+                .first()
+            )
+            if not contract:
+                return jsonify({
+                    "status": "error",
+                    "message": "No contract found for player",
+                    "data": None
+                }), 404
+            contract_id = contract.id
+            extension = ExtensionPlayer(
+                league_id=league_id,
+                player_id=player_id,
+                team_id=team_id,
+                contract_id=contract_id,
+                contract_length=extension_length,
+                season=current_season
+            )
+            db.session.add(extension)
+            db.session.commit()
+            log_entry = CommissionerActionLog(
+                league_id=league_id,
+                team_id=team_id,
+                player_id=player_id,
+                action_type="extension",
+                operation="add",
+                contract_length=extension_length,
+                season=current_season,
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+            result = {
+                "league_id": league_id,
+                "team_id": team_id,
+                "player_id": player_id,
+                "contract_length": extension_length,
+            }
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Invalid action_type",
+                "data": None
+            }), 400
+
+        try:
+            from .roster_service import RosterService
+            RosterService._response_cache.clear()
+            RosterService._response_cache_ts.clear()
+        except Exception:
+            pass
+
+        return jsonify({"status": "success", "data": result}), 201
+    except Exception as e:
+        logger.error(f"Error adding commissioner action: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "data": None
+        }), 500
+
+@api.route('/commissioner/action/remove', methods=['POST'])
+@cross_origin()
+def commissioner_remove_action():
+    """Commissioner remove contract-related actions for a specific team/player."""
+    try:
+        payload = request.get_json() or {}
+        league_id = payload.get("league_id")
+        team_id = payload.get("team_id")
+        player_id = payload.get("player_id")
+        action_type = payload.get("action_type")
+
+        if not league_id or not team_id or not player_id or not action_type:
+            return jsonify({
+                "status": "error",
+                "message": "league_id, team_id, player_id, and action_type are required",
+                "data": None
+            }), 400
+
+        league_id = int(league_id)
+        team_id = int(team_id)
+        player_id = int(player_id)
+        action_type = str(action_type).lower()
+
+        _, roster_player = _get_team_player_from_rosters(league_id, team_id, player_id)
+        if roster_player is None:
+            return jsonify({
+                "status": "error",
+                "message": "Player is not currently on this team",
+                "data": None
+            }), 409
+
+        league_chain_ids = get_league_chain_ids(league_id)
+        if not league_chain_ids:
+            league_chain_ids = [league_id]
+
+        removed = False
+        removed_length = None
+        removed_amount = None
+        nfl_state = sleeper_service.get_current_nfl_state() or {}
+        current_season = int(nfl_state.get("league_season", 2026))
+        if action_type == "contract":
+            contract = (
+                Contract.query.filter(Contract.player_id == player_id)
+                .filter(Contract.team_id == team_id)
+                .filter(Contract.league_id.in_(league_chain_ids))
+                .order_by(Contract.id.desc())
+                .first()
+            )
+            if contract:
+                removed_length = contract.contract_length
+                removed_amount = contract.contract_amount
+                # Remove dependent rows first to avoid NULL FK updates
+                ExtensionPlayer.query.filter_by(contract_id=contract.id).delete(synchronize_session=False)
+                AmnestyPlayer.query.filter_by(contract_id=contract.id).delete(synchronize_session=False)
+                RfaPlayer.query.filter_by(contract_id=contract.id).delete(synchronize_session=False)
+                db.session.delete(contract)
+                removed = True
+        elif action_type == "rfa":
+            record = (
+                RfaPlayer.query.filter(RfaPlayer.player_id == player_id)
+                .filter(RfaPlayer.team_id == team_id)
+                .filter(RfaPlayer.league_id.in_(league_chain_ids))
+                .order_by(RfaPlayer.created_at.desc())
+                .first()
+            )
+            if record:
+                removed_length = record.contract_length
+                db.session.delete(record)
+                removed = True
+        elif action_type == "amnesty":
+            record = (
+                AmnestyPlayer.query.filter(AmnestyPlayer.player_id == player_id)
+                .filter(AmnestyPlayer.team_id == team_id)
+                .filter(AmnestyPlayer.league_id.in_(league_chain_ids))
+                .order_by(AmnestyPlayer.created_at.desc())
+                .first()
+            )
+            if record:
+                db.session.delete(record)
+                removed = True
+        elif action_type == "extension":
+            record = (
+                ExtensionPlayer.query.filter(ExtensionPlayer.player_id == player_id)
+                .filter(ExtensionPlayer.team_id == team_id)
+                .filter(ExtensionPlayer.league_id.in_(league_chain_ids))
+                .order_by(ExtensionPlayer.created_at.desc())
+                .first()
+            )
+            if record:
+                removed_length = record.contract_length
+                db.session.delete(record)
+                removed = True
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Invalid action_type",
+                "data": None
+            }), 400
+
+        if not removed:
+            return jsonify({
+                "status": "error",
+                "message": "No matching action found",
+                "data": None
+            }), 404
+
+        db.session.commit()
+
+        log_entry = CommissionerActionLog(
+            league_id=league_id,
+            team_id=team_id,
+            player_id=player_id,
+            action_type=action_type,
+            operation="remove",
+            contract_length=removed_length,
+            contract_amount=removed_amount,
+            season=current_season,
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+
+        try:
+            from .roster_service import RosterService
+            RosterService._response_cache.clear()
+            RosterService._response_cache_ts.clear()
+        except Exception:
+            pass
+
+        return jsonify({"status": "success", "data": {"removed": True}}), 200
+    except Exception as e:
+        logger.error(f"Error removing commissioner action: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "data": None
+        }), 500
+
 @api.route('/player-image/<player_id>', methods=['GET'])
 @cross_origin()
 def get_player_image(player_id: str):
@@ -1024,6 +1465,7 @@ def get_all_contracts(league_id: str):
             if ext.contract_id is None:
                 continue
             extension_years_map[ext.contract_id] = extension_years_map.get(ext.contract_id, 0) + int(ext.contract_length or 0)
+        rfa_contract_ids = {r.contract_id for r in rfas if r.contract_id is not None}
         
         active_count = 0
         expired_count = 0
@@ -1062,7 +1504,7 @@ def get_all_contracts(league_id: str):
             
             # Determine contract status
             if contract_id in amnestied_contract_ids:
-                status = 'AMNESTIED'
+                status = 'EXPIRED'
                 is_active = False
                 amnestied_count += 1
             elif contract['is_expired']:
@@ -1108,6 +1550,8 @@ def get_all_contracts(league_id: str):
                 'amount': amount,
                 'contract_amount': getattr(contracts_db_map.get(contract_id), "contract_amount", None),
                 'status': status,
+                'is_amnestied': True if contract_id in amnestied_contract_ids else False,
+                'is_rfa': True if contract_id in rfa_contract_ids else False,
                 'is_active': is_active,
                 'on_current_roster': on_current_roster,
                 'years_remaining': max(0, (adjusted_end_season or 0) - current_season + 1) if not contract['is_expired'] else 0
@@ -1120,53 +1564,6 @@ def get_all_contracts(league_id: str):
             except Exception:
                 db.session.rollback()
 
-        # Append RFA records as 1-year contracts
-        for rfa in rfas:
-            pid = str(rfa.player_id)
-            # Reuse name lookup
-            player = players_db_map.get(pid)
-            if player:
-                first_name = player.first_name or 'Unknown'
-                last_name = player.last_name or 'Unknown'
-                position = player.position or 'N/A'
-            else:
-                local_player = local_players_map.get(pid)
-                if local_player:
-                    first_name = local_player.get('first_name') or 'Unknown'
-                    last_name = local_player.get('last_name') or 'Unknown'
-                    position = local_player.get('position') or 'N/A'
-                else:
-                    sleeper_player = sleeper_players_map.get(pid)
-                    if sleeper_player:
-                        first_name = sleeper_player.first_name or 'Unknown'
-                        last_name = sleeper_player.last_name or 'Unknown'
-                        position = sleeper_player.position or 'N/A'
-                    else:
-                        first_name = 'Unknown'
-                        last_name = f'(ID: {pid})'
-                        position = 'N/A'
-
-            data.append({
-                'id': f"rfa-{rfa.player_id}-{rfa.season}",
-                'league_id': rfa.league_id,
-                'player_id': pid,
-                'first_name': first_name,
-                'last_name': last_name,
-                'position': position,
-                'team_id': rfa.team_id,
-                'team_name': team_name_map.get(str(rfa.team_id)) if rfa.team_id is not None else None,
-                'contract_length': 1,
-                'contract_start_season': rfa.season,
-                'contract_end_season': rfa.season,
-                'extension_years': 0,
-                'is_extended': False,
-                'amount': 0,
-                'status': 'RFA',
-                'is_active': True,
-                'on_current_roster': pid in current_roster_players,
-                'years_remaining': 1
-            })
-        
         logger.info(f"Contract summary: {active_count} active, {expired_count} expired, {amnestied_count} amnestied")
         logger.info(f"Returning {len(data)} total contracts")
         

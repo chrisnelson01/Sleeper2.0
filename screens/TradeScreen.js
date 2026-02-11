@@ -7,10 +7,12 @@ import {
   FlatList,
   Pressable,
   Image,
-  Button,
-  Modal
+  Modal,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { useAppContext } from '../context/AppContext';
+import Screen from '../components/Screen';
+import { useTheme } from '../styles/theme';
+import { API_BASE_URL } from '../constants';
 
 const Dropdown = ({
   label,
@@ -22,6 +24,11 @@ const Dropdown = ({
   onAddAmount,
 }) => {
   const [selectedPlayers, setSelectedPlayers] = useState([]);
+  const theme = useTheme();
+  const styles = getStyles(theme);
+  const selectedTone = 'rgba(16, 185, 129, 0.18)';
+  const contractThreeTone = 'rgba(245, 158, 11, 0.18)';
+  const contractTwoTone = 'rgba(59, 130, 246, 0.18)';
 
   const selectPlayer = (player) => {
     const updatedSelectedPlayers = [...selectedPlayers];
@@ -42,7 +49,7 @@ const Dropdown = ({
   return (
     <View style={[styles.teamContainer, styles.teamDropdown]}>
       <Pressable onPress={toggleDropdown}>
-        <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>
+        <Text style={styles.dropdownLabel}>
           {selectedTeam ? selectedTeam.display_name : label}
         </Text>
       </Pressable>
@@ -60,9 +67,12 @@ const Dropdown = ({
                 }}
                 style={styles.teamItem}
               >
-                <Text style={{ fontSize: 16, color: 'white', fontWeight: 'bold' }}>{item.display_name}</Text>
+                <Text style={styles.teamItemText}>{item.display_name}</Text>
               </Pressable>
             )}
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
+            style={{ maxHeight: 300 }}
           />
         </View>
       )}
@@ -77,19 +87,19 @@ const Dropdown = ({
                 {
                   backgroundColor:
                     selectedPlayers.some((p) => p.player_id === player.player_id)
-                      ? '#4CAF50'
+                      ? selectedTone
                       : player.contract === '3'
-                      ? '#626e42'
+                      ? contractThreeTone
                       : player.contract === '2'
-                      ? '#4a5f82'
-                      : '#293142',
+                      ? contractTwoTone
+                      : theme.colors.surfaceAlt,
                 },
               ]}
               onPress={() => selectPlayer(player)}
             >
               <Image
                 source={{
-                  uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg`,
+                  uri: `${API_BASE_URL}/player-image/${player.player_id}`,
                 }}
                 style={styles.playerImage}
               />
@@ -108,7 +118,10 @@ const Dropdown = ({
 };
 
 const TradeScreen = ({ route }) => {
-  const { playerData } = route.params;
+  const { rostersData } = useAppContext();
+  const theme = useTheme();
+  const styles = getStyles(theme);
+  const playerData = rostersData || [];
 
   const [isDropdownVisible1, setDropdownVisible1] = useState(false);
   const [isDropdownVisible2, setDropdownVisible2] = useState(false);
@@ -149,25 +162,25 @@ const TradeScreen = ({ route }) => {
 
   const checkTrade = () => {
     // Add logic to check the trade with selectedPlayers1 and selectedPlayers2
-    console.log('Checking trade...');
+    // trade check
     if (selectedTeam1 && selectedTeam2) {
       const totalAfterTrade1 = selectedTeam1.total_amount - calculateTotalAmount(selectedPlayers1) + calculateTotalAmount(selectedPlayers2);
       const totalAfterTrade2 = selectedTeam2.total_amount - calculateTotalAmount(selectedPlayers2) + calculateTotalAmount(selectedPlayers1);
 
       if (totalAfterTrade1 <= 260 && totalAfterTrade2 <= 260) {
-        console.log('Trade successful');
+        // trade successful
         setTradeResult('Trade successful');
         setTotalAfterTrade1(totalAfterTrade1)
         setTotalAfterTrade2(totalAfterTrade2)
       } else {
-        console.log('Trade unsuccessful');
+        // trade unsuccessful
         setTradeResult('Trade unsuccessful');
         setTotalAfterTrade1(totalAfterTrade1)
         setTotalAfterTrade2(totalAfterTrade2)
       }
       setIsModalVisible(true);
     } else {
-      console.log('Please select two teams before checking trade.');
+      // Please select two teams before checking trade.
     }
   };
 
@@ -176,8 +189,12 @@ const TradeScreen = ({ route }) => {
   };
 
   return (
-    <ScrollView style={{flex: 1, backgroundColor: '#181c28'}}>
-    <View style={{backgroundColor: '#181c28', flex: 1, alignItems: 'center'}}>
+    <Screen scroll contentContainerStyle={styles.scrollContent}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Trade Analyzer</Text>
+        <Text style={styles.subtitle}>Select two teams and compare cap impact.</Text>
+      </View>
+
       <Dropdown
         label="Select a Team"
         isDropdownVisible={isDropdownVisible1}
@@ -205,8 +222,7 @@ const TradeScreen = ({ route }) => {
         </View>
       )}
 
-             {/* Modal */}
-<Modal
+      <Modal
         visible={isModalVisible}
         animationType="slide"
         transparent={true}
@@ -217,60 +233,53 @@ const TradeScreen = ({ route }) => {
             {tradeResult && (
               <View style={styles.resultContainer}>
                 {tradeResult === 'Trade successful' ? (
-                  <Ionicons name="checkmark-circle" size={30} color="#4CAF50" />
+                  <Ionicons name="checkmark-circle" size={30} color={theme.colors.success} />
                 ) : (
-                  <Ionicons name="sad" size={30} color="#FF0000" />
+                  <Ionicons name="sad" size={30} color={theme.colors.danger} />
                 )}
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>{tradeResult}</Text>
-                <Text style={{ color: 'white', fontSize: 15, marginTop: 10 }}>Teams Total Before and After Trade</Text>
+                <Text style={styles.resultTitle}>{tradeResult}</Text>
+                <Text style={styles.resultSubtitle}>Teams Total Before and After Trade</Text>
                 {selectedTeam1 && selectedTeam2 && (
-                  <View style={{
-                                  flexDirection: 'row',
-                                    flexDirection: 'row', justifyContent: 'space-between', marginTop: 5,}}>
-                    <View style={{ alignItems: 'center', margin: 10 }}>
-                      <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold' }}>{selectedTeam1.display_name}</Text>
-                      <Text style={{ color: 'white', fontSize: 15 }}>${selectedTeam1.total_amount} | ${totalAfterTrade1}</Text>
+                  <View style={styles.resultRow}>
+                    <View style={styles.resultTeam}>
+                      <Text style={styles.resultTeamName}>{selectedTeam1.display_name}</Text>
+                      <Text style={styles.resultTeamAmount}>${selectedTeam1.total_amount} | ${totalAfterTrade1}</Text>
                     </View>
-                    <View style={{ alignItems: 'center', margin: 10 }}>
-                      <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold' }}>{selectedTeam2.display_name}</Text>
-                      <Text style={{ color: 'white', fontSize: 15 }}>${selectedTeam2.total_amount} | ${totalAfterTrade2}</Text>
+                    <View style={styles.resultTeam}>
+                      <Text style={styles.resultTeamName}>{selectedTeam2.display_name}</Text>
+                      <Text style={styles.resultTeamAmount}>${selectedTeam2.total_amount} | ${totalAfterTrade2}</Text>
                     </View>
                   </View>
                 )}
 
-                {/* Display selected players for both teams */}
                 <View style={styles.selectedPlayersContainer}>
                   <View style={styles.selectedPlayerColumn}>
-                    <Text numberOfLines={1} style={{ color: 'white', fontSize: 15, fontWeight: 'bold' }}>{selectedTeam1.display_name} gets:</Text>
+                    <Text numberOfLines={1} style={styles.selectedPlayerHeader}>{selectedTeam1.display_name} gets:</Text>
                     {selectedPlayers2.map((player) => (
-                      <View key={player.player_id} style={{ alignItems: 'center', marginVertical: 5 }}>
+                      <View key={player.player_id} style={styles.selectedPlayerCard}>
                         <Image
-                          source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
+                          source={{ uri: `${API_BASE_URL}/player-image/${player.player_id}` }}
                           style={styles.playerImage}
                         />
                         <Text numberOfLines={1} style={styles.selectedPlayer}>
                           {player.first_name} {player.last_name}
                         </Text>
-                        <Text style={styles.selectedPlayer}>
-                          ${player.amount}
-                        </Text>
+                        <Text style={styles.selectedPlayer}>${player.amount}</Text>
                       </View>
                     ))}
                   </View>
                   <View style={styles.selectedPlayerColumn}>
-                    <Text numberOfLines={1} style={{ color: 'white', fontSize: 15, fontWeight: 'bold' }}>{selectedTeam2.display_name} gets:</Text>
+                    <Text numberOfLines={1} style={styles.selectedPlayerHeader}>{selectedTeam2.display_name} gets:</Text>
                     {selectedPlayers1.map((player) => (
-                      <View key={player.player_id} style={{ alignItems: 'center', marginVertical: 5 }}>
+                      <View key={player.player_id} style={styles.selectedPlayerCard}>
                         <Image
-                          source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
+                          source={{ uri: `${API_BASE_URL}/player-image/${player.player_id}` }}
                           style={styles.playerImage}
                         />
                         <Text numberOfLines={1} style={styles.selectedPlayer}>
                           {player.first_name} {player.last_name}
                         </Text>
-                        <Text style={styles.selectedPlayer}>
-                          ${player.amount}
-                        </Text>
+                        <Text style={styles.selectedPlayer}>${player.amount}</Text>
                       </View>
                     ))}
                   </View>
@@ -284,21 +293,35 @@ const TradeScreen = ({ route }) => {
           </View>
         </View>
       </Modal>
-    </View>
-    </ScrollView>
+    </Screen>
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
+  scrollContent: {
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.sm,
+  },
+  header: {
+    marginBottom: theme.spacing.sm,
+  },
+  title: {
+    fontSize: 28,
+    color: theme.colors.text,
+    fontFamily: theme.typography.heading.fontFamily,
+  },
+  subtitle: {
+    marginTop: theme.spacing.xs,
+    color: theme.colors.textMuted,
+    fontFamily: theme.typography.subtitle.fontFamily,
+  },
   teamContainer: {
-    backgroundColor: '#293142',
-    borderWidth: 1,
-    borderColor: 'white',
-    marginVertical: 5,
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 10, 
-    width: '98%'// Rounded corners for teams
+    ...theme.card,
+    marginVertical: theme.spacing.xs,
+    marginTop: theme.spacing.sm,
+    padding: theme.spacing.sm,
+    borderRadius: theme.radii.lg, 
+    width: '100%',
   },
   playersContainer: {
     flexDirection: 'column',
@@ -309,9 +332,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     textAlign: 'center',
-    padding: 1,
-    margin: 1,
-    borderRadius: 8,
+    padding: theme.spacing.xs,
+    margin: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   playerImage: {
     width: 50,
@@ -321,7 +346,8 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginVertical: 10,
-    width: '50%', // Set the width to your desired value
+    width: '60%',
+    alignSelf: 'center',
   },
   resultContainer: {
     alignItems: 'center',
@@ -331,17 +357,18 @@ const styles = StyleSheet.create({
   dropdownContainer: {
     marginTop: 10,
     borderWidth: 1,
-    borderColor: 'white',
-    borderRadius: 10,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.lg,
     padding: 10,
+    backgroundColor: theme.colors.surface,
   },
   teamItem: {
     borderWidth: 1,
-    borderColor: 'white',
+    borderColor: theme.colors.border,
     marginBottom: 10,
     padding: 10,
-    borderRadius: 10,
-    backgroundColor: '#4a5f82'
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceAlt
   },
   playerInfo: {
     flexDirection: 'row',
@@ -351,14 +378,15 @@ const styles = StyleSheet.create({
   },
   playerName: {
     marginLeft: 10,
-    color: 'white',
+    color: theme.colors.text,
     fontSize: 15,
-    fontWeight: '500'
+    fontFamily: theme.typography.body.fontFamily,
   },
   playerAmount: {
-    color: 'white',
+    color: theme.colors.text,
     alignContent: 'flex-end',
-    marginRight: 30
+    marginRight: 30,
+    fontFamily: theme.typography.small.fontFamily,
   },
   modalContainer: {
       flex: 1,
@@ -366,41 +394,98 @@ const styles = StyleSheet.create({
       alignItems: 'center',
       backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
     },
-    modalContent: {
-      backgroundColor: '#293142',
-      padding: 20,
-      borderRadius: 10,
-      width: '90%', // Adjust the width as needed
-    },
-    closeButton: {
-      marginTop: 10,
-      backgroundColor: '#4a5f82',
-      padding: 10,
-      borderRadius: 10,
-      width: '100%',
-    },
+  modalContent: {
+    backgroundColor: theme.colors.card,
+    padding: theme.spacing.md,
+    borderRadius: theme.radii.lg,
+    width: '90%',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadows.card,
+  },
+  closeButton: {
+    marginTop: 10,
+    backgroundColor: theme.colors.accent,
+    padding: 10,
+    borderRadius: theme.radii.pill,
+    width: '100%',
+  },
     closeButtonText: {
-      color: 'white',
+      color: theme.colors.accentText,
       textAlign: 'center',
       fontSize: 16,
-      fontWeight: 'bold',
+      fontFamily: theme.typography.body.fontFamily,
     },
-    selectedPlayersContainer: {
-      flex: 1,
-      flexDirection: 'row',
-      width: '100%',
-      marginHorizontal: 50,// Adjust the width to leave space between the columns
-    },
-    selectedPlayerColumn: {
-      alignItems: 'center',
-      width: '48%',
-      // Adjust the width to leave space between the columns
-    },
+  selectedPlayersContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    width: '100%',
+    marginTop: theme.spacing.sm,
+  },
+  selectedPlayerColumn: {
+    alignItems: 'center',
+    width: '48%',
+    // Adjust the width to leave space between the columns
+  },
+  selectedPlayerCard: {
+    alignItems: 'center',
+    marginVertical: 5,
+    padding: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
     selectedPlayer: {
-      color: 'white',
+      color: theme.colors.text,
       fontSize: 15,
       marginTop: 5,
+      fontFamily: theme.typography.small.fontFamily,
     },
+  dropdownLabel: {
+    fontSize: 18,
+    color: theme.colors.text,
+    fontFamily: theme.typography.title.fontFamily,
+  },
+    teamItemText: {
+      fontSize: 16,
+      color: theme.colors.text,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+  resultTitle: {
+    color: theme.colors.text,
+    fontFamily: theme.typography.title.fontFamily,
+  },
+    resultSubtitle: {
+      color: theme.colors.textMuted,
+      fontSize: 15,
+      marginTop: 10,
+      fontFamily: theme.typography.small.fontFamily,
+    },
+    resultTeamName: {
+      color: theme.colors.text,
+      fontSize: 15,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    resultTeamAmount: {
+      color: theme.colors.textMuted,
+      fontSize: 15,
+      fontFamily: theme.typography.small.fontFamily,
+    },
+  selectedPlayerHeader: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontFamily: theme.typography.body.fontFamily,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.sm,
+  },
+  resultTeam: {
+    alignItems: 'center',
+    flex: 1,
+  },
 });
 
 export default TradeScreen;

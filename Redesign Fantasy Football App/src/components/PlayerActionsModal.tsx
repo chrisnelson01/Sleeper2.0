@@ -24,6 +24,10 @@ interface PlayerActionsModalProps {
   amnestyLeft: number;
   teamId: string | number | null;
   extensionLeft: number;
+  onActionSaved?: (message: string) => void;
+  onContractAdded?: (playerId: string, years: number) => void;
+  onExtensionAdded?: (playerId: string, addedYears: number) => void;
+  onRfaAdded?: (playerId: string, years: number) => void;
 }
 
 export function PlayerActionsModal({
@@ -34,6 +38,10 @@ export function PlayerActionsModal({
   amnestyLeft,
   teamId,
   extensionLeft,
+  onActionSaved,
+  onContractAdded,
+  onExtensionAdded,
+  onRfaAdded,
 }: PlayerActionsModalProps) {
   const [showAddContract, setShowAddContract] = useState(false);
   const [showAmnestyConfirm, setShowAmnestyConfirm] = useState(false);
@@ -55,6 +63,10 @@ export function PlayerActionsModal({
     const raw = Number(leagueInfo?.extension_length ?? 1);
     return Number.isFinite(raw) && raw > 0 ? raw : 1;
   }, [leagueInfo?.extension_length]);
+  const rfaLength = useMemo(() => {
+    const raw = Number(leagueInfo?.rfa_length ?? 1);
+    return Number.isFinite(raw) && raw > 0 ? raw : 1;
+  }, [leagueInfo?.rfa_length]);
 
   const handleAddContract = () => {
     onClose();
@@ -94,6 +106,7 @@ export function PlayerActionsModal({
         team_id: String(teamId),
       });
       await refreshLeagueData();
+      onActionSaved?.("Amnesty Added");
       setShowAmnestyConfirm(false);
       onClose();
     } catch (err: any) {
@@ -118,6 +131,8 @@ export function PlayerActionsModal({
         team_id: String(teamId),
       });
       await refreshLeagueData();
+      onRfaAdded?.(player.id, rfaLength);
+      onActionSaved?.("RFA Added");
       setShowRfaConfirm(false);
       onClose();
     } catch (err: any) {
@@ -142,6 +157,8 @@ export function PlayerActionsModal({
         team_id: String(teamId),
       });
       await refreshLeagueData();
+      onExtensionAdded?.(player.id, extensionLength);
+      onActionSaved?.("Extension Added");
       setShowExtensionConfirm(false);
       onClose();
     } catch (err: any) {
@@ -348,6 +365,10 @@ export function PlayerActionsModal({
         player={player}
         isOpen={showAddContract}
         onClose={() => setShowAddContract(false)}
+        onSaved={(years) => {
+          onContractAdded?.(player.id, years);
+          onActionSaved?.("Contract Added");
+        }}
       />
 
       {/* RFA Confirmation Modal */}

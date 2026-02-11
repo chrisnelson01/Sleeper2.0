@@ -19,9 +19,10 @@ interface AddContractModalProps {
   player: Player;
   isOpen: boolean;
   onClose: () => void;
+  onSaved?: (years: number) => void;
 }
 
-export function AddContractModal({ player, isOpen, onClose }: AddContractModalProps) {
+export function AddContractModal({ player, isOpen, onClose, onSaved }: AddContractModalProps) {
   const { selectedLeagueId, refreshLeagueData } = useAppContext();
   const [contractYears, setContractYears] = useState(1);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -64,6 +65,7 @@ export function AddContractModal({ player, isOpen, onClose }: AddContractModalPr
         contract_amount: player.salary,
       });
       await refreshLeagueData();
+      onSaved?.(contractYears);
       setShowConfirmation(false);
       setContractYears(1);
       onClose();

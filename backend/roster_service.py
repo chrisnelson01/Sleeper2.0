@@ -13,7 +13,7 @@ from .data_schemas import (
     PlayerData, RosterPlayer, TeamRoster, RostersResponse,
     validate_sleeper_roster, validate_sleeper_user, validate_draft_pick
 )
-from .utils import get_contract_value, get_league_info, get_all_contracts_in_chain
+from .utils import get_league_info, get_all_contracts_in_chain
 from .models import LeagueChain, RfaPlayer, AmnestyPlayer, ExtensionPlayer, RfaTeam, AmnestyTeam, ExtensionTeam, LocalPlayer
 from .extensions import db
 import json
@@ -159,6 +159,18 @@ class RosterService:
             RosterService._cost_map_cache[cache_key] = cost_map
             RosterService._cost_map_cache_ts[cache_key] = now
         return cost_map
+
+    @staticmethod
+    def get_cached_cost_map(cache_key: str) -> Dict[str, int] | None:
+        """Return cached cost map if still fresh, otherwise None."""
+        if not cache_key:
+            return None
+        now = time.time()
+        cached = RosterService._cost_map_cache.get(cache_key)
+        cached_ts = RosterService._cost_map_cache_ts.get(cache_key, 0.0)
+        if cached is not None and (now - cached_ts) < RosterService._cost_map_cache_ttl:
+            return cached
+        return None
     
     @staticmethod
     def process_rosters(
@@ -195,6 +207,34 @@ class RosterService:
                 roster_player_ids.extend([str(pid) for pid in r.get('players', [])])
         players_map = RosterService.build_players_map(league_id, player_ids=roster_player_ids)
         cost_map = RosterService.build_cost_map(draft_picks, transactions, cache_key=cost_map_cache_key)
+
+        # Precompute remaining contract years per player (avoid per-player DB queries)
+        contract_years_map: Dict[str, int] = {}
+        try:
+            from .utils import get_league_chain_ids
+            from .models import Contract, AmnestyPlayer
+            league_chain_ids = get_league_chain_ids(int(league_id))
+            if not league_chain_ids:
+                league_chain_ids = [int(league_id)]
+            contracts = (
+                Contract.query.filter(Contract.league_id.in_(league_chain_ids))
+                .order_by(Contract.id.desc())
+                .all()
+            )
+            amnestied_ids = {
+                a.contract_id
+                for a in AmnestyPlayer.query.filter(AmnestyPlayer.league_id.in_(league_chain_ids)).all()
+            }
+            for contract in contracts:
+                if contract.id in amnestied_ids:
+                    continue
+                pid = str(contract.player_id)
+                if pid in contract_years_map:
+                    continue
+                remaining = contract.contract_length - (current_season - contract.season)
+                contract_years_map[pid] = max(0, remaining)
+        except Exception:
+            contract_years_map = {}
         
         # Step 2: Create lookup dicts
         users_map = {u.get('user_id'): u for u in users if u.get('user_id')}
@@ -239,11 +279,7 @@ class RosterService:
                         logger.warning(f"Player {player_id_str} not found in local DB or Sleeper API, using placeholder")
                 
                 # Get contract info for this player
-                contract_years = get_contract_value(
-                    int(player_id),
-                    int(league_id),
-                    current_season
-                )
+                contract_years = contract_years_map.get(player_id_str, 0)
                 
                 # Get amount from cost map
                 amount = cost_map.get(player_id_str, 0)
@@ -417,8 +453,11 @@ class RosterService:
             except Exception:
                 users = []
 
-        # Build draft picks if not provided
-        if not draft_picks or not isinstance(draft_picks, dict):
+        cost_map_cache_key = f"{current_league_id}:{','.join(league_chain)}"
+        cached_cost_map = RosterService.get_cached_cost_map(cost_map_cache_key)
+
+        # Build draft picks if not provided and no cached cost map
+        if (not draft_picks or not isinstance(draft_picks, dict)) and cached_cost_map is None:
             draft_picks = {}
             try:
                 # Collect drafts across the entire league chain (current -> original)
@@ -456,18 +495,21 @@ class RosterService:
                         draft_picks[draft_id] = sleeper_service.get_draft_picks(draft_id)
             except Exception:
                 draft_picks = {}
+        elif cached_cost_map is not None:
+            draft_picks = {}
 
         # Transactions
-        if not isinstance(transactions, list) or len(transactions) == 0:
+        if (not isinstance(transactions, list) or len(transactions) == 0) and cached_cost_map is None:
             try:
                 transactions = []
                 for round_num in range(0, 18):
                     transactions.extend(sleeper_service.get_transactions(current_league_id, round_num) or [])
             except Exception:
                 transactions = []
+        elif cached_cost_map is not None:
+            transactions = []
 
         # Process rosters (now using authoritative rosters/users for current league)
-        cost_map_cache_key = f"{current_league_id}:{','.join(league_chain)}"
         commissioner_id = None
         try:
             league_data_current = sleeper_service.get_league_data(str(current_league_id)) or {}

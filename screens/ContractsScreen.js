@@ -1,14 +1,36 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert, TouchableOpacity, Image, Picker, Modal } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, Picker, Modal } from 'react-native';
 import { API_BASE_URL } from '../constants';
+import { useAppContext } from '../context/AppContext';
+import Screen from '../components/Screen';
+import PlayerCard from '../components/PlayerCard';
+import { useTheme } from '../styles/theme';
 
 const ContractsScreen = ({ route, navigation }) => {
-  const { playerData, leagueId, contracts, leagueData } = route.params;  // Use the passed contracts from App.js
+  const { playerData, leagueId, leagueData } = route.params;  // Use the passed contracts from App.js
+  const { rostersData, leagueInfo, selectedLeagueId, userId, fetchRostersData } = useAppContext();
+  const theme = useTheme();
+  const styles = getStyles(theme);
+  const [contracts, setContracts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [contractLength, setContractLength] = useState(1);  // Default to 1 year
   const [modalVisible, setModalVisible] = useState(false);
+
+  // Fetch contracts when leagueId changes
+  useEffect(() => {
+    if (!leagueId) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/contracts/${leagueId}`);
+        const json = await res.json();
+        setContracts(json.data || json);
+      } catch (e) {
+        console.error('Failed loading contracts', e);
+      }
+    })();
+  }, [leagueId]);
 
   // Filter players based on search query and limit to 3 results
   const filterPlayers = (query) => {
@@ -92,78 +114,72 @@ const ContractsScreen = ({ route, navigation }) => {
 
   // Render each player item with name and image
   const renderPlayerItem = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.playerItem,
-        selectedPlayer && selectedPlayer.player_id === item.player_id && styles.selectedPlayerHighlight // Add highlight if player is selected
-      ]}
+    <PlayerCard
+      player={item}
+      highlight={selectedPlayer && selectedPlayer.player_id === item.player_id}
       onPress={() => setSelectedPlayer(item)}
-    >
-      <Image
-        source={{ uri: `https://sleepercdn.com/content/nfl/players/${item.player_id}.jpg` }}
-        style={styles.playerImage}
-      />
-      <Text style={styles.playerText}>{`${item.first_name} ${item.last_name} (Current: ${item.contract || 1} years)`}</Text>
-    </TouchableOpacity>
+    />
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Update Player Contract</Text>
+    <Screen scroll contentContainerStyle={styles.scrollContent}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Update Contracts</Text>
+        <Text style={styles.subtitle}>Search a player and set the new term.</Text>
+      </View>
 
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search for a player..."
-        placeholderTextColor="#999"
-        value={searchQuery}
-        onChangeText={filterPlayers}
-      />
-
-      {searchQuery && (
-        <FlatList
-          data={filteredPlayers}  // Only show filtered players when search query exists
-          renderItem={renderPlayerItem}
-          keyExtractor={item => item.player_id.toString()}
-          style={styles.playerList}
+      <View style={styles.searchCard}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search for a player..."
+          placeholderTextColor={theme.colors.textMuted}
+          value={searchQuery}
+          onChangeText={filterPlayers}
         />
-      )}
+
+        {searchQuery && (
+          <View style={styles.playerList}>
+            {filteredPlayers.map((item) => renderPlayerItem({ item }))}
+          </View>
+        )}
+      </View>
 
       {selectedPlayer && (
-        <>
+        <View style={styles.selectionCard}>
           <Text style={styles.selectedPlayerText}>
-            Selected: {`${selectedPlayer.first_name} ${selectedPlayer.last_name}`}
+            {`${selectedPlayer.first_name} ${selectedPlayer.last_name}`}
           </Text>
 
-          <Text style={styles.label}>Select Contract Length:</Text>
-          <Picker
-            selectedValue={contractLength}
-            onValueChange={(itemValue) => setContractLength(itemValue)}
-            style={styles.picker}
-          >
-            <Picker.Item label="1" value={1} />
-            <Picker.Item label="2" value={2} />
-            <Picker.Item label="3" value={3} />
-            <Picker.Item label="4" value={4} />
-            <Picker.Item label="5" value={5} />
-            <Picker.Item label="6" value={6} />
-            <Picker.Item label="7" value={7} />
-            <Picker.Item label="8" value={8} />
-            <Picker.Item label="9" value={9} />
-            <Picker.Item label="10" value={10} />
-          </Picker>
+          <Text style={styles.label}>Contract length</Text>
+          <View style={styles.pickerWrap}>
+            <Picker
+              selectedValue={contractLength}
+              onValueChange={(itemValue) => setContractLength(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="1" value={1} />
+              <Picker.Item label="2" value={2} />
+              <Picker.Item label="3" value={3} />
+              <Picker.Item label="4" value={4} />
+              <Picker.Item label="5" value={5} />
+              <Picker.Item label="6" value={6} />
+              <Picker.Item label="7" value={7} />
+              <Picker.Item label="8" value={8} />
+              <Picker.Item label="9" value={9} />
+              <Picker.Item label="10" value={10} />
+            </Picker>
+          </View>
 
-          {/* Add more space between the picker and button */}
-          <View style={{ marginBottom: 40 }} />
-
-          <Button title="Update Contract" onPress={updateContract} />
-        </>
+          <TouchableOpacity style={styles.updateButton} onPress={updateContract}>
+            <Text style={styles.updateButtonText}>Update Contract</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
-      {/* Modal for Success Message */}
       <Modal
         transparent={true}
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}  // Close modal on back button press
+        onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -171,10 +187,10 @@ const ContractsScreen = ({ route, navigation }) => {
             <Text style={styles.modalMessage}>Contract updated successfully!</Text>
             <TouchableOpacity
               style={styles.closeButton}
-              onPress={() => { 
+              onPress={() => {
                 setModalVisible(false);
-                route.params.fetchLeagueData(leagueId, route.params.userId); // Fetch updated league data
-                navigation.replace('Contracts', { playerData: route.params.playerData, leagueId, contracts: route.params.contracts, userId: route.params.userId });  // Navigate back to the Contracts screen
+                route.params.fetchLeagueData(leagueId, route.params.userId);
+                navigation.replace('Contracts');
               }}
             >
               <Text style={styles.closeButtonText}>Close</Text>
@@ -182,103 +198,126 @@ const ContractsScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
-    </View>
+    </Screen>
   );
 };
 
 // Styles for the screen and modal
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#181c28',
-  },
-  title: {
-    fontSize: 24,
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  searchInput: {
-    height: 40,
-    borderColor: 'gray',
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    backgroundColor: '#293142',
-    color: 'white',
-    marginBottom: 20,
-  },
-  playerList: {
-    marginBottom: 20,
-  },
-  playerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    padding: 10, // Add padding for better selection experience
-    borderRadius: 8, // Add some border radius for visual aesthetics
-  },
-  playerImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 10,
-  },
-  playerText: {
-    fontSize: 18,
-    color: 'white',
-  },
-  selectedPlayerText: {
-    fontSize: 18,
-    color: 'white',
-    marginBottom: 10,
-  },
-  selectedPlayerHighlight: {
-    backgroundColor: '#4a5f82',  // Highlight color for selected player
-  },
-  label: {
-    fontSize: 18,
-    color: 'white',
-    marginBottom: 10,
-  },
-  picker: {
-    backgroundColor: '#293142',
-    color: 'white',
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',  // Background overlay for modal
-  },
-  modalContent: {
-    width: 300,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  modalMessage: {
-    fontSize: 18,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  closeButton: {
-    backgroundColor: '#293142',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-});
+const getStyles = (theme) =>
+  StyleSheet.create({
+    scrollContent: {
+      gap: theme.spacing.md,
+      paddingBottom: theme.spacing.xxl,
+    },
+    header: {
+      gap: theme.spacing.xs,
+    },
+    title: {
+      fontSize: 28,
+      color: theme.colors.text,
+      fontFamily: theme.typography.heading.fontFamily,
+    },
+    subtitle: {
+      color: theme.colors.textMuted,
+      fontFamily: theme.typography.subtitle.fontFamily,
+    },
+    searchCard: {
+      ...theme.card,
+      padding: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    searchInput: {
+      height: 40,
+      borderColor: theme.colors.border,
+      borderWidth: 1,
+      paddingHorizontal: 10,
+      backgroundColor: theme.colors.surfaceAlt,
+      color: theme.colors.text,
+      borderRadius: theme.radii.md,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    playerList: {
+      gap: theme.spacing.sm,
+    },
+    selectedPlayerText: {
+      fontSize: 18,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.xs,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    label: {
+      fontSize: 14,
+      color: theme.colors.textMuted,
+      marginBottom: 6,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    selectionCard: {
+      ...theme.card,
+      padding: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    pickerWrap: {
+      borderRadius: theme.radii.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surfaceAlt,
+      overflow: 'hidden',
+    },
+    picker: {
+      color: theme.colors.text,
+    },
+    modalContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',  // Background overlay for modal
+    },
+    modalContent: {
+      width: 300,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.card,
+      borderRadius: theme.radii.lg,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.card,
+    },
+    modalTitle: {
+      fontSize: 22,
+      marginBottom: 10,
+      color: theme.colors.text,
+      fontFamily: theme.typography.title.fontFamily,
+    },
+    modalMessage: {
+      fontSize: 18,
+      marginBottom: 20,
+      textAlign: 'center',
+      color: theme.colors.text,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    closeButton: {
+      backgroundColor: theme.colors.accent,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: theme.radii.pill,
+    },
+    closeButtonText: {
+      color: theme.colors.accentText,
+      fontSize: 16,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    updateButton: {
+      backgroundColor: theme.colors.accent,
+      paddingVertical: 12,
+      borderRadius: theme.radii.pill,
+      alignItems: 'center',
+      ...theme.shadows.card,
+    },
+    updateButtonText: {
+      color: theme.colors.accentText,
+      fontSize: 16,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+  });
 
 export default ContractsScreen;

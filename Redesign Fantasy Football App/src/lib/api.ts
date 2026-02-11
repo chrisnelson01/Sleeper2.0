@@ -119,6 +119,35 @@ export const api = {
     return handleResponse(response);
   },
 
+  addCommissionerAction: async (payload: {
+    league_id: string;
+    team_id: string;
+    player_id: string;
+    action_type: "rfa" | "amnesty" | "contract" | "extension";
+    contract_length?: number;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/commissioner/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+
+  removeCommissionerAction: async (payload: {
+    league_id: string;
+    team_id: string;
+    player_id: string;
+    action_type: "rfa" | "amnesty" | "contract" | "extension";
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/commissioner/action/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+
   updateLeagueInfo: async (leagueId: string, payload: Record<string, any>) => {
     const response = await fetch(`${API_BASE_URL}/league/${leagueId}`, {
       method: "PUT",

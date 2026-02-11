@@ -236,32 +236,40 @@ function TeamCard({ team, isExpanded, capLimit, onToggle }: TeamCardProps) {
               </div>
 
               {/* Team Resources */}
-              <div className="grid grid-cols-4 gap-2">
-                <div className="bg-secondary/30 rounded-lg p-2.5">
-                  <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider">RFA</div>
-                  <div className="text-lg font-bold text-foreground">
-                    {team.rfaLeft}
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="bg-secondary/30 rounded-lg p-2.5 text-left">
+                    <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider whitespace-nowrap truncate text-left">
+                      RFA
+                    </div>
+                    <div className="text-lg font-bold text-foreground text-left">
+                      {team.rfaLeft}
+                    </div>
+                  </div>
+                  <div className="bg-secondary/30 rounded-lg p-2.5 text-left">
+                    <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider whitespace-nowrap truncate text-left">
+                      Amnesty
+                    </div>
+                    <div className="text-lg font-bold text-foreground text-left">
+                      {team.amnestyLeft}
+                    </div>
+                  </div>
+                  <div className="bg-secondary/30 rounded-lg p-2.5 text-left">
+                    <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider whitespace-nowrap truncate text-left">
+                      Contracts
+                    </div>
+                    <div className="text-lg font-bold text-foreground text-left">
+                      {team.contracts}
+                    </div>
+                  </div>
+                  <div className="bg-secondary/30 rounded-lg p-2.5 text-left">
+                    <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider whitespace-nowrap truncate text-left">
+                      Extensions
+                    </div>
+                    <div className="text-lg font-bold text-foreground text-left">
+                      {team.extensions}
+                    </div>
                   </div>
                 </div>
-                <div className="bg-secondary/30 rounded-lg p-2.5">
-                  <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider">Amnesty</div>
-                  <div className="text-lg font-bold text-foreground">
-                    {team.amnestyLeft}
-                  </div>
-                </div>
-                <div className="bg-secondary/30 rounded-lg p-2.5">
-                  <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider">Contracts</div>
-                  <div className="text-lg font-bold text-foreground">
-                    {team.contracts}
-                  </div>
-                </div>
-                <div className="bg-secondary/30 rounded-lg p-2.5">
-                  <div className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wider">Extensions</div>
-                  <div className="text-lg font-bold text-foreground">
-                    {team.extensions}
-                  </div>
-                </div>
-              </div>
 
               {/* Roster */}
               <div className="mt-4 pt-3 border-t border-border">

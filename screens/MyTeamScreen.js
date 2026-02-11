@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, Alert } from 'react-native';
 import PlayerOptionsModal from '../components/PlayerOptionsModal'; 
 import ContractLengthModal from '../components/ContractLengthModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { API_BASE_URL } from '../constants';
-
-const positionColors = {
-  QB: '#FF4C4C',  // Red
-  RB: '#4CAF50',  // Green
-  WR: '#2196F3',  // Blue
-  TE: '#FF9800'   // Orange
-};
+import { useAppContext } from '../context/AppContext';
+import Screen from '../components/Screen';
+import CapBar from '../components/CapBar';
+import PlayerCard from '../components/PlayerCard';
+import { useTheme } from '../styles/theme';
 
 const positionOrder = {
   QB: 1,
@@ -21,7 +18,42 @@ const positionOrder = {
 };
 
 const MyTeamScreen = ({ route, navigation }) => {
-  const { team, leagueId, leagueData } = route.params;
+  const { rostersData, selectedTeam, leagueInfo, selectedLeagueId, userId, fetchSelectedRosterData, fetchRostersData } = useAppContext();
+  const theme = useTheme();
+  const styles = getStyles(theme);
+  // Route params for backward compatibility
+  const routeTeam = route?.params?.team;
+  const routeLeagueId = route?.params?.leagueId;
+  const routeLeagueData = route?.params?.leagueData;
+
+  const leagueId = selectedLeagueId || routeLeagueId;
+  const leagueData = leagueInfo || routeLeagueData;
+
+  // Ensure selected team is fetched when IDs become available
+  useEffect(() => {
+    const lid = leagueId;
+    if ((!routeTeam && !selectedTeam) && lid && userId) {
+      // fetch selected team independently
+      fetchSelectedRosterData(lid, userId).catch(() => {
+        // fallback to legacy fetch that also populates rostersData
+        fetchRostersData(lid, userId);
+      });
+    }
+  }, [leagueId, userId, routeTeam, selectedTeam, fetchSelectedRosterData, fetchRostersData]);
+
+  // Prefer route-provided team (legacy) -> selectedTeam (new) -> rostersData lookup
+  const team = routeTeam || selectedTeam || rostersData?.find(t => String(t.owner_id) === String(userId));
+
+  // If team isn't ready, show selected IDs (per your requirement)
+  if (!team) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.debugText}>Selected League ID: {selectedLeagueId || 'N/A'}</Text>
+        <Text style={styles.debugText}>Selected User ID: {userId || 'N/A'}</Text>
+      </View>
+    );
+  }
+
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [confirmationModalVisible, setConfirmationModalVisible] = useState(false);
@@ -115,8 +147,17 @@ const MyTeamScreen = ({ route, navigation }) => {
           },
           body,
         });
-
-        await route.params.fetchLeagueData(leagueId, team.owner_id);
+        // If legacy caller passed a fetch function in route params, call it
+        if (route?.params?.fetchLeagueData) {
+          try {
+            await route.params.fetchLeagueData(leagueId, team.owner_id);
+          } catch (e) {
+            // ignore and fall through to context refresh
+          }
+        }
+        // Refresh selected team and rosters via context
+        await fetchSelectedRosterData(leagueId, team.owner_id).catch(() => {});
+        await fetchRostersData(leagueId, team.owner_id).catch(() => {});
       }
     } catch (error) {
       console.error(error);
@@ -129,84 +170,47 @@ const MyTeamScreen = ({ route, navigation }) => {
   };
 
   // Sorting function
-  const sortedPlayers = team.players.slice().sort((a, b) => {
-    return positionOrder[a.position] - positionOrder[b.position];
+  const sortedPlayers = (team.players || []).slice().sort((a, b) => {
+    const aRank = positionOrder[a.position] ?? 999;
+    const bRank = positionOrder[b.position] ?? 999;
+    if (aRank !== bRank) return aRank - bRank;
+    return String(a.position || '').localeCompare(String(b.position || ''));
   });
 
+  // Single structured debug log for selected team source and parsed players
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('MyTeamScreen - selected team source:', selectedTeam ? 'selectedTeam endpoint' : 'rostersData');
+    console.info('MyTeamScreen - owner_id:', team.owner_id, 'display_name:', team.display_name, 'player_count:', team.players?.length);
+    console.info('MyTeamScreen - first three parsed players:', team.players?.slice(0,3).map(p => `${p.first_name} ${p.last_name}`));
+  }
+
+  const capLimit = 260;
+  const totalCap = Number(team.total_amount || 0);
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.userContainer}>
-        {team.avatar && (
-          <Image source={{ uri: `https://sleepercdn.com/avatars/thumbs/${team.avatar}` }} style={styles.avatarImage} />
-        )}
-        <Text style={styles.title}>{team.display_name}</Text>
+    <Screen scroll contentContainerStyle={styles.containerContent}>
+      <View style={styles.headerCard}>
+        <View style={styles.headerRow}>
+          {team.avatar && (
+            <Image source={{ uri: `https://sleepercdn.com/avatars/thumbs/${team.avatar}` }} style={styles.avatarImage} />
+          )}
+          <View style={styles.headerText}>
+            <Text style={styles.title}>{team.display_name}</Text>
+            <Text style={styles.subtitle}>My team overview</Text>
+          </View>
+        </View>
+        <CapBar total={totalCap} limit={capLimit} />
       </View>
 
       {sortedPlayers.map((player) => (
-        <TouchableOpacity
+        <PlayerCard
           key={player.player_id}
-          style={[
-            styles.playerContainer,
-            {
-              backgroundColor: '#264b63',
-            },
-          ]}
+          player={player}
           onPress={() => {
             setSelectedPlayer(player);
             setModalVisible(true);
           }}
-        >
-          <Image
-            source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
-            style={styles.playerImage}
-          />
-          <View style={styles.playerInfo}>
-              <View style={styles.playerHeader}>
-                <Text style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
-                <View style={[styles.positionBox, { backgroundColor: positionColors[player.position] }]}>
-                  <Text style={styles.positionText}>{player.position}</Text>
-                </View>
-              </View>
-              <View style={styles.row}>
-                <View style={styles.amountContainer}>
-                  <Text style={styles.playerAmount}>
-                    {`$${player.amount}`}
-                  </Text>
-                </View>
-                <View style={styles.contractInfoContainer}>
-                  {player.taxi && (
-                    <View style={styles.row}>
-                      <Ionicons name="car-outline" size={16} color="#fff" style={styles.iconOffset} />
-                    </View>
-                  )}
-                  {player.extension_contract_length && (
-                    <View style={styles.row}>
-                      <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} />
-                      <Text style={styles.icon}>{` ${player.extension_contract_length} `}</Text>
-                    </View>
-                  )}
-                  {player.rfa_contract_length && (
-                    <View style={styles.row}>
-                      <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} />
-                      <Text style={styles.icon}>{` ${player.rfa_contract_length} `}</Text>
-                    </View>
-                  )}
-                  {player.amnesty && (
-                    <View style={styles.row}>
-                      <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} />
-                    </View>
-                  )}
-                  {player.contract !== 0 && (
-                    <View style={styles.row}>
-                      <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} />
-                      <Text style={styles.icon}>{` ${player.contract} `}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
-
-        </TouchableOpacity>
+        />
       ))}
       
       <PlayerOptionsModal
@@ -234,109 +238,62 @@ const MyTeamScreen = ({ route, navigation }) => {
         onConfirm={handleConfirmAction}
         message={`Are you sure you want to ${confirmationType === 'AddContract' ? `add a ${contractLength} year contract to ${selectedPlayer.first_name} ${selectedPlayer.last_name}? This cannot be undone` : `${confirmationType === 'RFA' ? 'add this player as an RFA?' : confirmationType === 'Amnesty' ? 'apply amnesty?' : 'extend the player\'s contract?'} This cannot be undone`}`}
       />
-    </ScrollView>
+    </Screen>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#181c28',
-    padding: 10,
-  },
-  userContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    justifyContent: 'center',
-  },
-  avatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 10,
-  },
-  title: {
-    fontSize: 24,
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  playerContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 10,
-    alignItems: 'center',
-  },
-  playerImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 10,
-  },
-  playerInfo: {
-    flex: 1,
-  },
-  playerNameContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  },
-  playerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  playerName: {
-    fontSize: 18,
-    color: 'white',
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  positionBox: {
-    width: 20,
-    height: 20,
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-    alignSelf: 'flex-start'
-  },
-  positionText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 10,
-  },
-  playerAmount: {
-    fontSize: 14,
-    color: 'white',
-    minWidth: 30,
-    textAlign: 'left',
-  },
-  icon: {
-    fontSize: 14,
-    color: 'white',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconOffset: {
-    marginRight: 5,
-  },
-  amountContainer: {
-    flex: 1,
-    alignItems: 'flex-start',
-  },
-  contractInfoContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  errorText: {
-    color: 'red',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-});
+const getStyles = (theme) =>
+  StyleSheet.create({
+    containerContent: {
+      padding: theme.spacing.md,
+      paddingBottom: theme.spacing.xl,
+      flexGrow: 1,
+      gap: theme.spacing.sm,
+    },
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      padding: theme.spacing.md,
+    },
+    headerCard: {
+      ...theme.card,
+      padding: theme.spacing.md,
+      gap: theme.spacing.md,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    headerText: {
+      flex: 1,
+    },
+    avatarImage: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+    },
+    title: {
+      fontSize: 26,
+      color: theme.colors.text,
+      fontFamily: theme.typography.heading.fontFamily,
+    },
+    subtitle: {
+      marginTop: theme.spacing.xs,
+      color: theme.colors.textMuted,
+      fontFamily: theme.typography.subtitle.fontFamily,
+    },
+    errorText: {
+      color: '#B23A3A',
+      fontSize: 16,
+      textAlign: 'center',
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    debugText: {
+      color: theme.colors.text,
+      marginBottom: theme.spacing.xs,
+      fontFamily: theme.typography.small.fontFamily,
+    },
+  });
 
 export default MyTeamScreen;

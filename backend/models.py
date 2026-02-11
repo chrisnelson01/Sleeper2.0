@@ -93,6 +93,20 @@ class ExtensionTeam(db.Model):
     team_id = db.Column(db.Integer, primary_key=True, nullable=False)
     extension_left = db.Column(db.Integer, nullable=False)
 
+class CommissionerActionLog(db.Model):
+    __tablename__ = 'commissioner_action_log'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    league_id = db.Column(db.Integer, nullable=False)
+    team_id = db.Column(db.Integer, nullable=False)
+    player_id = db.Column(db.Integer, nullable=False)
+    action_type = db.Column(db.String, nullable=False)  # contract, rfa, amnesty, extension
+    operation = db.Column(db.String, nullable=False)  # add or remove
+    contract_length = db.Column(db.Integer, nullable=True)
+    contract_amount = db.Column(db.Integer, nullable=True)
+    season = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
+
 class LeagueInfo(db.Model):
     __tablename__ = 'league_info'
     league_id = db.Column(db.Integer, primary_key=True, nullable=False)

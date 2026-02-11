@@ -1,63 +1,82 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, TextInput, Text, StyleSheet, Pressable } from 'react-native';
+import Screen from '../components/Screen';
+import { useTheme } from '../styles/theme';
 
 const UsernameInputScreen = ({ onUsernameSubmit }) => {
   const [input, setInput] = useState('');
+  const theme = useTheme();
+  const styles = getStyles(theme);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Enter Sleeper Username</Text>
-      <TextInput 
-        placeholder="Enter Username" 
-        value={input} 
-        onChangeText={setInput}
-        placeholderTextColor="gray"
-        style={styles.input}
-      />
-      <TouchableOpacity style={styles.button} onPress={() => onUsernameSubmit(input)}>
-        <Text style={styles.buttonText}>Submit</Text>
-      </TouchableOpacity>
-    </View>
+    <Screen contentContainerStyle={styles.content}>
+      <View style={styles.card}>
+        <Text style={styles.title}>Welcome to Sleeper</Text>
+        <Text style={styles.subtitle}>Enter your username to sync leagues and rosters.</Text>
+        <TextInput
+          placeholder="Sleeper username"
+          value={input}
+          onChangeText={setInput}
+          placeholderTextColor={theme.colors.textMuted}
+          style={styles.input}
+        />
+        <Pressable style={styles.button} onPress={() => onUsernameSubmit(input)}>
+          <Text style={styles.buttonText}>Continue</Text>
+        </Pressable>
+      </View>
+    </Screen>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#181c28',
-    padding: 10,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 20,
-  },
-  input: {
-    height: 50,
-    borderColor: '#4a5f82',
-    borderWidth: 1,
-    borderRadius: 8,
-    width: '80%',
-    marginBottom: 20,
-    paddingHorizontal: 15,
-    color: 'white',
-    backgroundColor: '#293142',
-    fontSize: 18,
-  },
-  button: {
-    backgroundColor: '#4a5f82',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-});
+const getStyles = (theme) =>
+  StyleSheet.create({
+    content: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: theme.spacing.lg,
+    },
+    card: {
+      ...theme.card,
+      paddingVertical: theme.spacing.xl,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.radii.xl,
+    },
+    title: {
+      fontSize: 28,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
+      fontFamily: theme.typography.heading.fontFamily,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: theme.colors.textMuted,
+      marginBottom: theme.spacing.lg,
+      fontFamily: theme.typography.subtitle.fontFamily,
+    },
+    input: {
+      height: 50,
+      borderColor: theme.colors.border,
+      borderWidth: 1,
+      borderRadius: theme.radii.lg,
+      width: '100%',
+      marginBottom: theme.spacing.lg,
+      paddingHorizontal: 15,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.surfaceAlt,
+      fontSize: 18,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    button: {
+      backgroundColor: theme.colors.accent,
+      paddingVertical: 14,
+      borderRadius: theme.radii.pill,
+      alignItems: 'center',
+    },
+    buttonText: {
+      color: theme.colors.accentText,
+      fontSize: 16,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+  });
 
 export default UsernameInputScreen;

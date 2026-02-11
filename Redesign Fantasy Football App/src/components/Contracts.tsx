@@ -15,6 +15,8 @@ interface Contract {
   endSeason: number | null;
   contractAmount: number;
   isExtended: boolean;
+  isRfa: boolean;
+  isAmnestied: boolean;
   status: "active" | "expired" | "amnestied" | "rfa";
 }
 
@@ -44,6 +46,16 @@ export function Contracts() {
           (startSeason && years ? Number(startSeason) + years - 1 : null);
         const status =
           String(contract.status || "ACTIVE").toLowerCase() as Contract["status"];
+        const isAmnestied = Boolean(
+          contract.is_amnestied || status === "amnestied"
+        );
+        const isRfa = Boolean(contract.is_rfa || status === "rfa");
+        const normalizedStatus =
+          status === "amnestied"
+            ? "expired"
+            : status === "rfa"
+            ? "active"
+            : status;
         return {
           id: String(contract.id),
           playerName: `${contract.first_name} ${contract.last_name}`,
@@ -53,12 +65,14 @@ export function Contracts() {
             "Unknown",
           position: contract.position || "N/A",
           years,
-          status,
+          status: normalizedStatus,
           startSeason,
           endSeason,
           contractAmount: Number(contract.contract_amount || 0),
           isExtended: Boolean(contract.is_extended || contract.extension_years),
           extensionYears,
+          isAmnestied,
+          isRfa,
         };
       });
       setContracts(mapped);
@@ -76,6 +90,8 @@ export function Contracts() {
       const matchesFilter =
         filterStatus === "all" ||
         contract.status === filterStatus ||
+        (filterStatus === "rfa" && contract.isRfa) ||
+        (filterStatus === "amnestied" && contract.isAmnestied) ||
         (filterStatus === "extended" && contract.isExtended);
 
       return matchesSearch && matchesFilter;
@@ -171,8 +187,6 @@ function ContractCard({ contract }: { contract: Contract }) {
   const statusColors = {
     active: "bg-accent/20 text-accent border-accent/30",
     expired: "bg-muted/50 text-muted-foreground border-border",
-    amnestied: "bg-destructive/20 text-destructive border-destructive/30",
-    rfa: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   };
 
   return (
@@ -201,8 +215,18 @@ function ContractCard({ contract }: { contract: Contract }) {
           <Badge
             className={`${statusColors[contract.status]} border px-2 py-1 text-[10px] font-bold`}
           >
-            {contract.status === "rfa" ? "RFA" : contract.status.toUpperCase()}
+            {contract.status.toUpperCase()}
           </Badge>
+          {contract.isRfa && (
+            <Badge className="border px-2 py-1 text-[10px] font-bold bg-blue-500/20 text-blue-400 border-blue-500/30">
+              RFA
+            </Badge>
+          )}
+          {contract.isAmnestied && (
+            <Badge className="border px-2 py-1 text-[10px] font-bold bg-destructive/20 text-destructive border-destructive/30">
+              AMNESTY
+            </Badge>
+          )}
           {contract.isExtended && (
             <Badge className="border px-2 py-1 text-[10px] font-bold bg-green-500/20 text-green-400 border-green-500/30">
               EXTENDED

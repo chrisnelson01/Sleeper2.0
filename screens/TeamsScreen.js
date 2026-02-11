@@ -1,37 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { ScrollView, Text, FlatList, TouchableOpacity, View, StyleSheet, Image, Dimensions, Modal, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { Text, TouchableOpacity, View, StyleSheet, Image, Modal, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../constants';
+import { useAppContext } from '../context/AppContext';
+import Screen from '../components/Screen';
+import CapBar from '../components/CapBar';
+import PlayerCard from '../components/PlayerCard';
+import { useTheme } from '../styles/theme';
+
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
-const TeamsScreen = ({ route }) => {
-  const { data, isOwner,leagueData, leagueId } = route.params;
+const TeamsScreen = () => {
+  const { rostersData, leagueInfo, selectedLeagueId, userId } = useAppContext();
+  const theme = useTheme();
+  const styles = getStyles(theme);
+  const data = rostersData || [];
+  const isOwner = data.find(t => t.owner_id === userId)?.is_owner;
+  const leagueData = leagueInfo;
+  const leagueId = selectedLeagueId;
+
   const [expandedTeam, setExpandedTeam] = useState(null);
-  const [playerBoxWidth, setPlayerBoxWidth] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  useEffect(() => {
-    const updatePlayerBoxWidth = () => {
-      const screenWidth = Dimensions.get('window').width;
-      const playersPerRow = 4;
-      const padding = 5;
-      const containerWidth = screenWidth - 2 * padding;
-      const calculatedWidth = containerWidth / playersPerRow;
-      setPlayerBoxWidth(calculatedWidth);
-    };
-
-    // Initial setup
-    updatePlayerBoxWidth();
-
-    // Update width when the window size changes
-    Dimensions.addEventListener('change', updatePlayerBoxWidth);
-
-    // Cleanup listener when the component is unmounted
-    return () => {
-      Dimensions.removeEventListener('change', updatePlayerBoxWidth);
-    };
-  }, []);
 
   const toggleTeamExpansion = (team) => {
     setExpandedTeam((prevTeam) => (prevTeam === team ? null : team));
@@ -181,22 +172,8 @@ const TeamsScreen = ({ route }) => {
     const avatarUrl = team.avatar
       ? `https://sleepercdn.com/avatars/thumbs/${team.avatar}`
       : null;
-    const getPositionColor = (position) => {
-        switch (position) {
-          case 'QB':
-            return '#FF4C4C';
-          case 'RB':
-            return '#4CAF50';
-          case 'WR':
-            return '#2196F3';
-          case 'TE':
-            return '#FF9800';
-          default:
-            return 'grey'; // Default color for undefined positions
-        }
-      };
-        // Sort players by position
-    const sortedPlayers = team.players.sort((a, b) => {
+    // Sort players by position
+    const sortedPlayers = team.players.slice().sort((a, b) => {
       const positionOrder = ['QB', 'RB', 'WR', 'TE'];
       return positionOrder.indexOf(a.position) - positionOrder.indexOf(b.position);
     });
@@ -213,94 +190,44 @@ const TeamsScreen = ({ route }) => {
                   style={styles.avatarImage}
                 />
               )}
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>{team.display_name}</Text>
+              <View>
+                <Text style={styles.teamName}>{team.display_name}</Text>
+                <Text style={styles.teamMeta}>${team.total_amount} cap used</Text>
+              </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center'}}>
               {team.rfa_left > 0 && (
-                <Ionicons name="ribbon-outline" size={18} color="#fff" style={styles.iconOffset} /> // RFA Icon
+                <Ionicons name="ribbon-outline" size={18} color={theme.colors.text} style={styles.iconOffset} /> // RFA Icon
               )}
               {team.extension_left > 0 && (
-                <Ionicons name="add-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Extension Icon
+                <Ionicons name="add-circle-outline" size={18} color={theme.colors.text} style={styles.iconOffset} /> // Extension Icon
               )}
               {team.amnesty_left > 0 && (
-                <Ionicons name="close-circle-outline" size={18} color="#fff" style={styles.iconOffset} /> // Amnesty Icon
+                <Ionicons name="close-circle-outline" size={18} color={theme.colors.text} style={styles.iconOffset} /> // Amnesty Icon
               )}
-              <Text style={{ color: 'white' , marginRight: 10}}>{`   $${team.total_amount}`}</Text>
+              <Text style={styles.teamAmount}>{`   $${team.total_amount}`}</Text>
               <Ionicons
                 name={expandedTeam === team ? 'chevron-up-outline' : 'chevron-down-outline'}
                 size={24}
-                color="white"
+                color={theme.colors.text}
                 style={{marginRight: 5}}
               />
             </View>
           </TouchableOpacity>
+          {expandedTeam === team && (
+            <View style={styles.teamCap}>
+              <CapBar total={Number(team.total_amount || 0)} limit={260} />
+            </View>
+          )}
           {expandedTeam === team && (
             <View style={styles.playersContainer}>
               {sortedPlayers.map((player) => (
                 <TouchableOpacity
                   key={player.player_id}
                   onPress={() => isOwner && openPlayerModal(player)}
-                  style={[
-                    styles.playerBox,
-                    {
-                      backgroundColor: '#264b63',
-                    },
-                  ]}
+                  style={styles.playerWrapper}
                 >
-                  <Image
-                    source={{ uri: `https://sleepercdn.com/content/nfl/players/${player.player_id}.jpg` }}
-                    style={styles.playerImage}
-                  />
-                  <View style={styles.playerInfo}>
-                    <View style={styles.amountContainer}>
-                      <View style={[styles.positionBox, { backgroundColor: getPositionColor(player.position) }]}>
-                        <Text style={styles.positionText}>{player.position}</Text>
-                      </View>
-                      <Text numberOfLines={1} style={styles.playerName}>{`${player.first_name} ${player.last_name}`}</Text>
-                    </View>
-                    <View style={styles.row}>
-                      {player.taxi && (
-                        <View style={styles.row}>
-                          <Ionicons name="car-outline" size={18} color="#fff" style={styles.iconOffset} /> {/* Taxi Icon */}
-                        </View>
-                      )}
-                      {player.extension_contract_length && (
-                        <View style={styles.row}>
-                          <Ionicons name="add-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Extension Icon */}
-                          <Text style={{color: 'white'}}>
-                            {`${player.extension_contract_length}  `}
-                          </Text>
-                        </View>
-                      )}
-
-                      {player.rfa_contract_length && (
-                        <View style={styles.row}>
-                          <Ionicons name="ribbon-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* RFA Icon */}
-                          <Text style={{color: 'white'}}>
-                            {`${player.rfa_contract_length}  `}
-                          </Text>
-                        </View>
-                      )}
-
-                      {player.amnesty && (
-                        <View style={styles.row}>
-                          <Ionicons name="close-circle-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Amnesty Icon */}
-                        </View>
-                      )}
-
-                      {player.contract !== 0 && (
-                        <View style={styles.row}>
-                          <Ionicons name="document-text-outline" size={16} color="#fff" style={styles.iconOffset} /> {/* Contract Icon */}
-                          <Text style={{color: 'white'}}>
-                            {`${player.contract}  `}
-                          </Text>
-                        </View>
-                      )}
-                    <View style={styles.amountContainer}>
-                      <Text style={styles.playerAmount}>{`$${player.amount}`}</Text>
-                    </View>
-                    </View>
-                  </View>
+                  <PlayerCard player={player} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -310,13 +237,13 @@ const TeamsScreen = ({ route }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={data}
-        keyExtractor={(team) => team.owner_id}
-        renderItem={renderTeam}
-        contentContainerStyle={{ padding: 10 }}
-      />
+    <Screen scroll contentContainerStyle={styles.scrollContent}>
+      <View style={styles.header}>
+        <Text style={styles.title}>League Teams</Text>
+        <Text style={styles.subtitle}>Tap a team to view full rosters.</Text>
+      </View>
+
+      {data.map((team) => renderTeam({ item: team }))}
 
       {selectedPlayer && (
         <Modal
@@ -328,7 +255,6 @@ const TeamsScreen = ({ route }) => {
             <View style={styles.modalContainer}>
               <Text style={styles.modalTitle}>{`Manage ${selectedPlayer.first_name} ${selectedPlayer.last_name}`}</Text>
 
-              {/* Amnesty Actions */}
               {selectedPlayer.amnesty ? (
                 <TouchableOpacity
                   style={styles.modalButton}
@@ -347,7 +273,6 @@ const TeamsScreen = ({ route }) => {
                 )
               )}
 
-              {/* RFA Actions */}
               {selectedPlayer.rfa_contract_length ? (
                 <TouchableOpacity
                   style={styles.modalButton}
@@ -366,7 +291,6 @@ const TeamsScreen = ({ route }) => {
                 )
               )}
 
-              {/* Extension Actions */}
               {selectedPlayer.extension_contract_length ? (
                 <TouchableOpacity
                   style={styles.modalButton}
@@ -392,158 +316,135 @@ const TeamsScreen = ({ route }) => {
           </View>
         </Modal>
       )}
-    </View>
+    </Screen>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#181c28',
-  },
-  teamContainer: {
-    backgroundColor: '#293142',
-    borderWidth: 1,
-    borderColor: 'white',
-    marginVertical: 5,
-    paddingVertical: 10,
-    paddingHorizontal: 2,
-    borderRadius: 10,
-  },
-  teamHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  teamInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  playersContainer: {
-    flexDirection: 'column',
-    flexWrap: 'wrap',
-  },
-  playerBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    textAlign: 'center',
-    padding: 1,
-    margin: 1,
-    borderRadius: 8,
-  },
-  playerImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginLeft: 5,
-  },
-  playerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flex: 1, // Allows the player name and amount to take up available space
-  },
-  playerName: {
-    marginLeft: 10,
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '500'
-  },
-  playerAmount: {
-    color: 'white',
-    alignContent: 'flex-end',
-    marginRight: 15,
-    minWidth: 25,
-    textAlign: 'right'
-  },
-  row: {
-    flexDirection: 'row',
-    alignContent: 'flex-end', // Aligns items horizontally
-    alignItems: 'center'// Vertically centers items
-  },
-  iconOffset: {
-    marginLeft: 5, // Adds space between the icon and text
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContainer: {
-    backgroundColor: '#293142',
-    padding: 20,
-    borderRadius: 10,
-    width: '85%',
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: 'white',
-  },
-  modalSubtitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginBottom: 10,
-  },
-  actionTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginTop: 10,
-    marginBottom: 5,
-    fontWeight: 'bold',
-  },
-  modalButton: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 10,
-    borderRadius: 5,
-    width: '80%', // Set width as percentage
-    alignItems: 'center',
-    marginVertical: 10, // Add margin between buttons
-  },
-  modalButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  closeButton: {
-    backgroundColor: '#4990e1',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 10,
-  },
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end', // Align the amount text to the end of the container
-  },
-  positionBox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  positionText: {
-    color: 'white',
-    fontSize: 9,
-  },
-});
+const getStyles = (theme) =>
+  StyleSheet.create({
+    scrollContent: {
+      paddingBottom: theme.spacing.xxl,
+      gap: theme.spacing.sm,
+    },
+    header: {
+      marginBottom: theme.spacing.sm,
+    },
+    title: {
+      fontSize: 28,
+      color: theme.colors.text,
+      fontFamily: theme.typography.heading.fontFamily,
+    },
+    subtitle: {
+      marginTop: theme.spacing.xs,
+      color: theme.colors.textMuted,
+      fontFamily: theme.typography.subtitle.fontFamily,
+    },
+    teamContainer: {
+      ...theme.card,
+      marginVertical: theme.spacing.xs,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
+    },
+    teamHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginLeft: theme.spacing.sm,
+    },
+    teamInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    avatarImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 10,
+    },
+    playersContainer: {
+      flexDirection: 'column',
+      flexWrap: 'wrap',
+    },
+    playerWrapper: {
+      marginVertical: theme.spacing.xs,
+    },
+    iconOffset: {
+      marginLeft: 5, // Adds space between the icon and text
+    },
+    modalOverlay: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContainer: {
+      backgroundColor: theme.colors.card,
+      padding: theme.spacing.md,
+      borderRadius: theme.radii.lg,
+      width: '85%',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.card,
+    },
+    modalTitle: {
+      fontSize: 22,
+      marginBottom: 10,
+      color: theme.colors.text,
+      fontFamily: theme.typography.title.fontFamily,
+    },
+    modalSubtitle: {
+      color: theme.colors.text,
+      fontSize: 16,
+      marginBottom: 10,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    actionTitle: {
+      color: theme.colors.text,
+      fontSize: 16,
+      marginTop: 10,
+      marginBottom: 5,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    modalButton: {
+      backgroundColor: theme.colors.accent,
+      paddingVertical: 10,
+      borderRadius: theme.radii.pill,
+      width: '80%',
+      alignItems: 'center',
+      marginVertical: 10,
+    },
+    modalButtonText: {
+      color: theme.colors.accentText,
+      fontSize: 16,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    closeButtonText: {
+      color: theme.colors.textMuted,
+      fontSize: 14,
+      marginTop: 10,
+      fontFamily: theme.typography.small.fontFamily,
+    },
+    teamName: {
+      fontSize: 18,
+      color: theme.colors.text,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    teamMeta: {
+      color: theme.colors.textMuted,
+      fontSize: 12,
+      fontFamily: theme.typography.small.fontFamily,
+    },
+    teamAmount: {
+      color: theme.colors.text,
+      marginRight: 10,
+      fontFamily: theme.typography.small.fontFamily,
+    },
+    teamCap: {
+      marginTop: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.sm,
+      paddingBottom: theme.spacing.sm,
+    },
+  });
 
 export default TeamsScreen;

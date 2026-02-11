@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTheme } from '../styles/theme';
 
 const PlayerOptionsModal = ({
   visible,
@@ -13,6 +13,8 @@ const PlayerOptionsModal = ({
   onAddContract,
   selectedPlayer,
 }) => {
+  const theme = useTheme();
+  const styles = getStyles(theme);
   return (
     <Modal
       transparent={true}
@@ -59,49 +61,55 @@ const PlayerOptionsModal = ({
   );
 };
 
-const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    width: '85%',
-    padding: 20,
-    backgroundColor: '#181c28',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: 'white',
-  },
-  playerDetails: {
-    fontSize: 18,
-    color: 'white',
-    marginBottom: 10,
-  },
-  modalButton: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 10,
-    borderRadius: 5,
-    width: '80%',
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  modalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 10,
-  },
-});
+const getStyles = (theme) =>
+  StyleSheet.create({
+    modalContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+      width: '85%',
+      padding: 20,
+      backgroundColor: theme.colors.card,
+      borderRadius: theme.radii.lg,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.card,
+    },
+    modalTitle: {
+      fontSize: 22,
+      marginBottom: 10,
+      color: theme.colors.text,
+      fontFamily: theme.typography.title.fontFamily,
+    },
+    playerDetails: {
+      fontSize: 18,
+      color: theme.colors.text,
+      marginBottom: 10,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    modalButton: {
+      backgroundColor: theme.colors.accent,
+      paddingVertical: 10,
+      borderRadius: theme.radii.pill,
+      width: '80%',
+      alignItems: 'center',
+      marginVertical: 10,
+    },
+    modalButtonText: {
+      color: theme.colors.accentText,
+      fontSize: 16,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    closeButtonText: {
+      color: theme.colors.textMuted,
+      fontSize: 14,
+      marginTop: 10,
+      fontFamily: theme.typography.small.fontFamily,
+    },
+  });
 
 export default PlayerOptionsModal;

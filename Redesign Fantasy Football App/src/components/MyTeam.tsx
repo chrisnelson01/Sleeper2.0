@@ -44,12 +44,17 @@ const comparePositions = (a: string, b: string) => {
   return a.localeCompare(b);
 };
 
-export function MyTeam() {
+interface MyTeamProps {
+  onActionSaved?: (message: string) => void;
+}
+
+export function MyTeam({ onActionSaved }: MyTeamProps) {
   const { rostersData, leagueInfo, userId } = useAppContext();
   const [filterPosition, setFilterPosition] = useState<FilterOption>("all");
   const [sortBy, setSortBy] = useState<SortOption>("position");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [showFilters, setShowFilters] = useState(false);
+  const [playerOverrides, setPlayerOverrides] = useState<Record<string, { years?: number }>>({});
 
   const team = useMemo(
     () => rostersData.find((t) => String(t.owner_id) === String(userId)),
@@ -62,18 +67,23 @@ export function MyTeam() {
   const amnestyLeft = Number(team?.amnesty_left ?? 0);
   const extensionLeft = Number(team?.extension_left ?? 0);
 
-  const mappedPlayers: Player[] = rosterPlayers.map((player) => ({
-    id: String(player.player_id),
-    name: `${player.first_name} ${player.last_name}`,
-    position: player.position,
-    salary: Number(player.amount || 0),
-    years: Number(player.contract_years || 0),
-    capHit: Number(player.amount || 0),
-    status: "active",
-    imageUrl: player.player_id
-      ? `${API_BASE_URL}/player-image/${player.player_id}`
-      : undefined,
-  }));
+  const mappedPlayers: Player[] = rosterPlayers.map((player) => {
+    const id = String(player.player_id);
+    const baseYears = Number(player.contract_years || 0);
+    const overrideYears = playerOverrides[id]?.years;
+    return {
+      id,
+      name: `${player.first_name} ${player.last_name}`,
+      position: player.position,
+      salary: Number(player.amount || 0),
+      years: typeof overrideYears === "number" ? overrideYears : baseYears,
+      capHit: Number(player.amount || 0),
+      status: "active",
+      imageUrl: player.player_id
+        ? `${API_BASE_URL}/player-image/${player.player_id}`
+        : undefined,
+    };
+  });
 
   const filteredPlayers = mappedPlayers.filter((player) => {
     if (filterPosition === "all") return true;
@@ -327,6 +337,31 @@ export function MyTeam() {
                 amnestyLeft={amnestyLeft}
                 teamId={teamId}
                 extensionLeft={extensionLeft}
+                onActionSaved={onActionSaved}
+                onContractAdded={(playerId, years) =>
+                  setPlayerOverrides((prev) => ({
+                    ...prev,
+                    [playerId]: { ...(prev[playerId] || {}), years },
+                  }))
+                }
+                onExtensionAdded={(playerId, addedYears) =>
+                  setPlayerOverrides((prev) => {
+                    const currentYears =
+                      prev[playerId]?.years ??
+                      mappedPlayers.find((p) => p.id === playerId)?.years ??
+                      0;
+                    return {
+                      ...prev,
+                      [playerId]: { ...(prev[playerId] || {}), years: currentYears + addedYears },
+                    };
+                  })
+                }
+                onRfaAdded={(playerId, years) =>
+                  setPlayerOverrides((prev) => ({
+                    ...prev,
+                    [playerId]: { ...(prev[playerId] || {}), years },
+                  }))
+                }
               />
             ))}
           </div>
@@ -341,12 +376,20 @@ function PlayerCard({
   amnestyLeft,
   teamId,
   extensionLeft,
+  onActionSaved,
+  onContractAdded,
+  onExtensionAdded,
+  onRfaAdded,
 }: {
   player: Player;
   rfaLeft: number;
   amnestyLeft: number;
   teamId: string | number | null;
   extensionLeft: number;
+  onActionSaved?: (message: string) => void;
+  onContractAdded?: (playerId: string, years: number) => void;
+  onExtensionAdded?: (playerId: string, addedYears: number) => void;
+  onRfaAdded?: (playerId: string, years: number) => void;
 }) {
   const [showActions, setShowActions] = useState(false);
   const yearsDisplay = player.years > 0 ? player.years : "N/A";
@@ -467,6 +510,10 @@ function PlayerCard({
         amnestyLeft={amnestyLeft}
         teamId={teamId}
         extensionLeft={extensionLeft}
+        onActionSaved={onActionSaved}
+        onContractAdded={onContractAdded}
+        onExtensionAdded={onExtensionAdded}
+        onRfaAdded={onRfaAdded}
       />
     </>
   );

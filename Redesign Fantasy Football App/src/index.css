@@ -525,6 +525,10 @@
     z-index: 50;
   }
 
+  .z-\[60\] {
+    z-index: 60;
+  }
+
   .mx-auto {
     margin-inline: auto;
   }
@@ -1110,6 +1114,16 @@
     border-color: #0000;
   }
 
+  .border-yellow-500\/20 {
+    border-color: color-mix(in srgb, oklch(.795 .184 86.047) 20%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .border-yellow-500\/20 {
+      border-color: color-mix(in oklab, var(--color-yellow-500) 20%, transparent);
+    }
+  }
+
   .border-yellow-500\/30 {
     border-color: color-mix(in srgb, oklch(.795 .184 86.047) 30%, transparent);
   }
@@ -1194,6 +1208,16 @@
 
   .bg-card {
     background-color: var(--card);
+  }
+
+  .bg-card\/95 {
+    background-color: color-mix(in srgb, var(--card) 95%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-card\/95 {
+      background-color: color-mix(in oklab, var(--card) 95%, transparent);
+    }
   }
 
   .bg-card\/40 {
@@ -1366,6 +1390,16 @@
     background-color: #0000;
   }
 
+  .bg-yellow-500\/10 {
+    background-color: color-mix(in srgb, oklch(.795 .184 86.047) 10%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-yellow-500\/10 {
+      background-color: color-mix(in oklab, var(--color-yellow-500) 10%, transparent);
+    }
+  }
+
   .bg-yellow-500\/20 {
     background-color: color-mix(in srgb, oklch(.795 .184 86.047) 20%, transparent);
   }
@@ -1384,6 +1418,17 @@
   .bg-gradient-to-br {
     --tw-gradient-position: to bottom right in oklab;
     background-image: linear-gradient(var(--tw-gradient-stops));
+  }
+
+  .from-accent\/5 {
+    --tw-gradient-from: color-mix(in srgb, var(--accent) 5%, transparent);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .from-accent\/5 {
+      --tw-gradient-from: color-mix(in oklab, var(--accent) 5%, transparent);
+    }
   }
 
   .from-accent\/10 {
@@ -1779,6 +1824,16 @@
     }
   }
 
+  .text-muted-foreground\/60 {
+    color: color-mix(in srgb, var(--muted-foreground) 60%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-muted-foreground\/60 {
+      color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+    }
+  }
+
   .text-orange-400 {
     color: var(--color-orange-400);
   }
@@ -1805,6 +1860,14 @@
 
   .text-yellow-400 {
     color: var(--color-yellow-400);
+  }
+
+  .text-yellow-500 {
+    color: var(--color-yellow-500);
+  }
+
+  .text-yellow-200\/90 {
+    color: #fef08ae6;
   }
 
   .uppercase {

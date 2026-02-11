@@ -11,9 +11,11 @@ import {
   Edit2,
   Check,
   X,
+  Crown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAppContext } from "../context/AppContext";
+import { CommissionerSuperView } from "./CommissionerSuperView";
 
 interface SettingSection {
   id: string;
@@ -32,9 +34,10 @@ interface SettingItem {
 
 interface SettingsProps {
   onLogout?: () => void;
+  onCommissionerSaved?: () => void;
 }
 
-export function Settings({ onLogout }: SettingsProps) {
+export function Settings({ onLogout, onCommissionerSaved }: SettingsProps) {
   const {
     rostersData,
     leagueInfo,
@@ -49,6 +52,7 @@ export function Settings({ onLogout }: SettingsProps) {
     "league-info"
   );
   const [settings, setSettings] = useState<SettingSection[]>([]);
+  const [showCommissionerView, setShowCommissionerView] = useState(false);
   const booleanKeys = new Set(["is_keeper", "is_auction"]);
   const numberKeys = new Set([
     "money_per_team",
@@ -149,6 +153,7 @@ export function Settings({ onLogout }: SettingsProps) {
     setSettings(buildSettings());
   }, [league, leagueInfo, rostersData.length, currentSeason]);
 
+
   const handleUpdateSection = async (sectionId: string, updatedItems: SettingItem[]) => {
     const updates: Record<string, any> = {};
     updatedItems.forEach((item) => {
@@ -238,6 +243,24 @@ export function Settings({ onLogout }: SettingsProps) {
 
       {/* Actions */}
       <div className="px-5 pb-6 space-y-3">
+        {isLeagueAdmin && (
+          <button
+            onClick={() => setShowCommissionerView(true)}
+            className="relative w-full bg-accent/10 backdrop-blur-xl hover:bg-accent/20 rounded-xl p-4 border border-accent/30 text-left transition-colors overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent pointer-events-none" />
+            <div className="relative flex items-center gap-3">
+              <Crown className="w-5 h-5 text-accent" />
+              <div>
+                <div className="font-semibold text-foreground">Commissioner Tools</div>
+                <div className="text-xs text-muted-foreground">
+                  Manage contract actions for all teams
+                </div>
+              </div>
+            </div>
+          </button>
+        )}
+
         <button
           className="relative w-full bg-destructive/10 backdrop-blur-sm hover:bg-destructive/20 rounded-xl p-4 border border-destructive/30 text-left transition-colors overflow-hidden"
           onClick={onLogout || logout}
@@ -256,6 +279,12 @@ export function Settings({ onLogout }: SettingsProps) {
       <div className="px-5 pb-6 text-center text-xs text-muted-foreground">
         Fantasy Football Pro - Version 2.4.1
       </div>
+
+      <CommissionerSuperView
+        isOpen={showCommissionerView}
+        onClose={() => setShowCommissionerView(false)}
+        onSaved={onCommissionerSaved}
+      />
     </div>
   );
 }
@@ -318,17 +347,17 @@ function SettingSection({ section, isExpanded, onToggle, isAdmin, onUpdate }: Se
   return (
     <div className="relative bg-card/40 backdrop-blur-xl rounded-xl border border-border/50 overflow-hidden shadow-lg shadow-black/5">
       <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
-      <button
-        onClick={onToggle}
-        className="relative w-full p-4 text-left flex items-center justify-between hover:bg-white/5 transition-colors"
-      >
-        <div className="flex items-center gap-3">
+      <div className="relative w-full p-4 flex items-center justify-between">
+        <button
+          onClick={onToggle}
+          className="flex-1 text-left flex items-center gap-3 hover:bg-white/5 transition-colors rounded-lg"
+        >
           <div className="w-10 h-10 rounded-xl bg-secondary/30 backdrop-blur-sm flex items-center justify-center">
             <Icon className="w-5 h-5 text-muted-foreground" />
           </div>
           <h4 className="font-semibold text-foreground">{section.title}</h4>
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
+        <div className="flex items-center gap-2 pl-2">
           {canEdit && isExpanded && !isEditing && (
             <button
               onClick={handleStartEdit}
@@ -341,7 +370,7 @@ function SettingSection({ section, isExpanded, onToggle, isAdmin, onUpdate }: Se
             <ChevronDown className="w-5 h-5 text-muted-foreground" />
           </motion.div>
         </div>
-      </button>
+      </div>
 
       <AnimatePresence>
         {isExpanded && (

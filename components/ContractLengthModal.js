@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTheme } from '../styles/theme';
 
 const ContractLengthModal = ({ visible, onClose, contractLength, setContractLength, onConfirmContractLength, selectedPlayer}) => {
+  const theme = useTheme();
+  const styles = getStyles(theme);
   const [length, setLength] = useState(parseInt(contractLength, 10) || 1);
   const increaseLength = () => setLength(length + 1);
   const decreaseLength = () => {
@@ -50,7 +53,7 @@ const ContractLengthModal = ({ visible, onClose, contractLength, setContractLeng
             style={[styles.modalButton, styles.cancelButton]}
             onPress={onClose}
           >
-            <Text style={styles.modalButtonText}>Cancel</Text>
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -58,67 +61,80 @@ const ContractLengthModal = ({ visible, onClose, contractLength, setContractLeng
   );
 };
 
-const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    width: '85%',
-    padding: 20,
-    backgroundColor: '#181c28',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: 'white',
-  },
-  lengthButtonContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  lengthButton: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    marginHorizontal: 10,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  contractLengthText: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
-    paddingHorizontal: 20,
-  },
-  modalButton: {
-    paddingVertical: 10,
-    borderRadius: 5,
-    width: '80%',
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  confirmButton: {
-    backgroundColor: '#4CAF50',
-  },
-  cancelButton: {
-    backgroundColor: '#F44336',
-  },
-  modalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});
+const getStyles = (theme) =>
+  StyleSheet.create({
+    modalContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+      width: '85%',
+      padding: 20,
+      backgroundColor: theme.colors.card,
+      borderRadius: theme.radii.lg,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.card,
+    },
+    modalTitle: {
+      fontSize: 22,
+      marginBottom: 10,
+      color: theme.colors.text,
+      fontFamily: theme.typography.title.fontFamily,
+    },
+    lengthButtonContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 20,
+    },
+    lengthButton: {
+      backgroundColor: theme.colors.surfaceAlt,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: theme.radii.md,
+      marginHorizontal: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    buttonText: {
+      color: theme.colors.text,
+      fontSize: 18,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    contractLengthText: {
+      color: theme.colors.text,
+      fontSize: 24,
+      paddingHorizontal: 20,
+      fontFamily: theme.typography.title.fontFamily,
+    },
+    modalButton: {
+      paddingVertical: 10,
+      borderRadius: theme.radii.pill,
+      width: '80%',
+      alignItems: 'center',
+      marginVertical: 10,
+    },
+    confirmButton: {
+      backgroundColor: theme.colors.accent,
+    },
+    cancelButton: {
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    modalButtonText: {
+      color: theme.colors.accentText,
+      fontSize: 16,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+    cancelText: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontFamily: theme.typography.body.fontFamily,
+    },
+  });
 
 export default ContractLengthModal;
