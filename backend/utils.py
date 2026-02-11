@@ -12,6 +12,7 @@ from .models import (
 )
 from .extensions import db
 from sqlalchemy import text
+from sqlalchemy import inspect
 from .sleeper_service import sleeper_service
 
 logger = logging.getLogger(__name__)
@@ -321,11 +322,17 @@ def get_contract_value(player_id: int, league_id: int, current_season: int) -> i
 
     # Ensure contract_amount column exists for older DBs
     try:
-        result = db.session.execute(text("PRAGMA table_info(contract)"))
-        columns = [row[1] for row in result.fetchall()]
-        if "contract_amount" not in columns:
-            db.session.execute(text("ALTER TABLE contract ADD COLUMN contract_amount INTEGER"))
-            db.session.commit()
+        if db.engine.dialect.name == "sqlite":
+            result = db.session.execute(text("PRAGMA table_info(contract)"))
+            columns = [row[1] for row in result.fetchall()]
+            if "contract_amount" not in columns:
+                db.session.execute(text("ALTER TABLE contract ADD COLUMN contract_amount INTEGER"))
+                db.session.commit()
+        else:
+            inspector = inspect(db.engine)
+            columns = [col["name"] for col in inspector.get_columns("contract")]
+            if "contract_amount" not in columns:
+                logger.warning("contract_amount column missing in contract table for non-sqlite DB")
     except Exception as e:
         logger.warning(f"Could not ensure contract_amount column: {e}")
     

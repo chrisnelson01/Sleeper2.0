@@ -5,15 +5,18 @@ from sqlalchemy import ForeignKey
 
 class Contract(db.Model):
     __tablename__ = 'contract'
-    
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    player_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    league_id = db.Column(db.Integer, nullable=False, index=True)
+    player_id = db.Column(db.Integer, nullable=False, index=True)
     team_id = db.Column(db.Integer)
     contract_amount = db.Column(db.Integer, nullable=True)
     contract_length = db.Column(db.Integer, nullable=False)
     season = db.Column(db.Integer, nullable=False, default=db.func.strftime('%Y', 'now'))
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     created_at = db.Column(db.DateTime, nullable=True, default=db.func.now())
+
+    __table_args__ = (
+        db.Index('ix_contract_league_player', 'league_id', 'player_id'),
+    )
 
     # Define relationship to RfaPlayer
     rfa_players = relationship('RfaPlayer', back_populates='contract')

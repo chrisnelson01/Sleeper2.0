@@ -34,6 +34,8 @@ def create_app():
 
         def ensure_column(table: str, column: str, column_type: str):
             try:
+                if db.engine.dialect.name != "sqlite":
+                    return
                 result = db.session.execute(text(f"PRAGMA table_info({table})"))
                 columns = [row[1] for row in result.fetchall()]
                 if column not in columns:
