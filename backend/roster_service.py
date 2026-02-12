@@ -17,6 +17,7 @@ from .utils import get_league_info, get_all_contracts_in_chain
 from .models import LeagueChain, RfaPlayer, AmnestyPlayer, ExtensionPlayer, RfaTeam, AmnestyTeam, ExtensionTeam, LocalPlayer
 from .extensions import db
 import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,8 @@ class RosterService:
             if isinstance(r, dict):
                 roster_player_ids.extend([str(pid) for pid in r.get('players', [])])
         players_map = RosterService.build_players_map(league_id, player_ids=roster_player_ids)
-        cost_map = RosterService.build_cost_map(draft_picks, transactions, cache_key=cost_map_cache_key)
+        skip_cost_map = os.getenv("SKIP_COST_MAP", "0") == "1"
+        cost_map = {} if skip_cost_map else RosterService.build_cost_map(draft_picks, transactions, cache_key=cost_map_cache_key)
 
         # Precompute remaining contract years per player (avoid per-player DB queries)
         contract_years_map: Dict[str, int] = {}
@@ -270,13 +272,17 @@ class RosterService:
                 player = players_map.get(player_id_str)
                 
                 if not player:
-                    # Fallback to Sleeper API for missing player, then cache locally
-                    player = RosterService._fetch_player_from_sleeper(player_id_str)
-                    if player:
-                        players_map[player_id_str] = player
-                    else:
+                    # Avoid heavy Sleeper player downloads in constrained environments
+                    if os.getenv("SKIP_PLAYER_FALLBACK", "0") == "1":
                         player = PlayerData.placeholder(player_id_str)
-                        logger.warning(f"Player {player_id_str} not found in local DB or Sleeper API, using placeholder")
+                    else:
+                        # Fallback to Sleeper API for missing player, then cache locally
+                        player = RosterService._fetch_player_from_sleeper(player_id_str)
+                        if player:
+                            players_map[player_id_str] = player
+                        else:
+                            player = PlayerData.placeholder(player_id_str)
+                            logger.warning(f"Player {player_id_str} not found in local DB or Sleeper API, using placeholder")
                 
                 # Get contract info for this player
                 contract_years = contract_years_map.get(player_id_str, 0)
