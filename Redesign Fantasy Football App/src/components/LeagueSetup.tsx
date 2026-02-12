@@ -65,7 +65,7 @@ const settingGroups: SettingGroup[] = [
         type: "number",
         description: "Length of RFA contracts in years",
         min: 1,
-        max: 5,
+        max: 10,
       },
     ],
   },
@@ -342,6 +342,7 @@ function SettingGroupCard({
                       type="number"
                       inputMode="numeric"
                       value={settings[field.key]}
+                      onFocus={(e) => e.currentTarget.select()}
                       onChange={(e) => {
                         const value = parseInt(e.target.value) || 0;
                         const clampedValue = Math.max(
