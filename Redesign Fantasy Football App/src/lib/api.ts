@@ -1,5 +1,6 @@
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "/api/v1";
+import { auth } from "./firebase";
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 const SLEEPER_API_URL = "https://api.sleeper.app/v1";
 
 const handleResponse = async (response: Response) => {
@@ -19,6 +20,21 @@ const handleResponse = async (response: Response) => {
     throw new Error(data.message || "API error");
   }
   return data?.data !== undefined ? data.data : data;
+};
+
+const getAuthToken = async () => {
+  const user = auth.currentUser;
+  if (!user) return null;
+  return user.getIdToken();
+};
+
+const authFetch = async (input: RequestInfo, init?: RequestInit) => {
+  const token = await getAuthToken();
+  const headers = new Headers(init?.headers || {});
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(input, { ...init, headers });
 };
 
 export const api = {
@@ -57,12 +73,12 @@ export const api = {
   },
 
   getRostersData: async (leagueId: string, userId: string) => {
-    const response = await fetch(`${API_BASE_URL}/rosters/${leagueId}/${userId}`);
+    const response = await authFetch(`${API_BASE_URL}/rosters/${leagueId}/${userId}`);
     return handleResponse(response);
   },
 
   getAllContracts: async (leagueId: string) => {
-    const response = await fetch(`${API_BASE_URL}/all-contracts/${leagueId}`);
+    const response = await authFetch(`${API_BASE_URL}/all-contracts/${leagueId}`);
     return handleResponse(response);
   },
 
@@ -72,7 +88,7 @@ export const api = {
     contract_length: number;
     contract_amount?: number;
   }) => {
-    const response = await fetch(`${API_BASE_URL}/contracts`, {
+    const response = await authFetch(`${API_BASE_URL}/contracts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -85,7 +101,7 @@ export const api = {
     player_id: string;
     team_id: string;
   }) => {
-    const response = await fetch(`${API_BASE_URL}/amnesty`, {
+    const response = await authFetch(`${API_BASE_URL}/amnesty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -98,7 +114,7 @@ export const api = {
     player_id: string;
     team_id: string;
   }) => {
-    const response = await fetch(`${API_BASE_URL}/rfa`, {
+    const response = await authFetch(`${API_BASE_URL}/rfa`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -111,7 +127,7 @@ export const api = {
     player_id: string;
     team_id: string;
   }) => {
-    const response = await fetch(`${API_BASE_URL}/extension`, {
+    const response = await authFetch(`${API_BASE_URL}/extension`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -126,7 +142,7 @@ export const api = {
     action_type: "rfa" | "amnesty" | "contract" | "extension";
     contract_length?: number;
   }) => {
-    const response = await fetch(`${API_BASE_URL}/commissioner/action`, {
+    const response = await authFetch(`${API_BASE_URL}/commissioner/action`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -140,7 +156,7 @@ export const api = {
     player_id: string;
     action_type: "rfa" | "amnesty" | "contract" | "extension";
   }) => {
-    const response = await fetch(`${API_BASE_URL}/commissioner/action/remove`, {
+    const response = await authFetch(`${API_BASE_URL}/commissioner/action/remove`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -149,7 +165,7 @@ export const api = {
   },
 
   updateLeagueInfo: async (leagueId: string, payload: Record<string, any>) => {
-    const response = await fetch(`${API_BASE_URL}/league/${leagueId}`, {
+    const response = await authFetch(`${API_BASE_URL}/league/${leagueId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -158,9 +174,23 @@ export const api = {
   },
 
   getLeagueActivity: async (leagueId: string, offset = 0, limit = 20) => {
-    const response = await fetch(
+    const response = await authFetch(
       `${API_BASE_URL}/activity/${leagueId}?offset=${offset}&limit=${limit}`
     );
+    return handleResponse(response);
+  },
+
+  linkSleeperUsername: async (username: string) => {
+    const response = await authFetch(`${API_BASE_URL}/auth/link-sleeper`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+    return handleResponse(response);
+  },
+
+  getAuthProfile: async () => {
+    const response = await authFetch(`${API_BASE_URL}/auth/me`);
     return handleResponse(response);
   },
 };

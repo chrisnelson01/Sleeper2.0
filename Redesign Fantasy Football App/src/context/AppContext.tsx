@@ -27,9 +27,11 @@ type TeamInfo = {
 
 type LeagueInfo = {
   league_id?: number | string;
+  commissioner?: string;
   is_auction?: boolean | number;
   is_keeper?: boolean | number;
   money_per_team?: number;
+  max_contract_length?: number;
   rfa_length?: number;
   extension_length?: number;
   amnesty_allowed?: number;
@@ -139,6 +141,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         await fetchLeagues(uid);
       } catch (err: any) {
         setError(err?.message || "Failed to find user");
+        throw err;
       } finally {
         setIsLoading(false);
       }

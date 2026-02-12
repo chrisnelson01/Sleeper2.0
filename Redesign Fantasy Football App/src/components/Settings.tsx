@@ -277,7 +277,7 @@ export function Settings({ onLogout, onCommissionerSaved }: SettingsProps) {
       </div>
 
       <div className="px-5 pb-6 text-center text-xs text-muted-foreground">
-        Fantasy Football Pro - Version 2.4.1
+        Sleeper 3.0 - Version 3.0.0
       </div>
 
       <CommissionerSuperView
