@@ -1,14 +1,15 @@
 from .extensions import db
 from sqlalchemy import func
+from sqlalchemy import BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy import ForeignKey
 
 class Contract(db.Model):
     __tablename__ = 'contract'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    league_id = db.Column(db.Integer, nullable=False, index=True)
-    player_id = db.Column(db.Integer, nullable=False, index=True)
-    team_id = db.Column(db.Integer)
+    league_id = db.Column(BigInteger, nullable=False, index=True)
+    player_id = db.Column(BigInteger, nullable=False, index=True)
+    team_id = db.Column(BigInteger)
     contract_amount = db.Column(db.Integer, nullable=True)
     contract_length = db.Column(db.Integer, nullable=False)
     season = db.Column(db.Integer, nullable=False, default=db.func.strftime('%Y', 'now'))
@@ -29,15 +30,15 @@ class Contract(db.Model):
 class Rule(db.Model):
     __tablename__ = 'rules'
     rule_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    league_id = db.Column(db.Integer, nullable=False)
+    league_id = db.Column(BigInteger, nullable=False)
     rule_text = db.Column(db.Text, nullable=False)
 
 class AmnestyPlayer(db.Model):
     __tablename__ = 'amnesty_player'
     
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    player_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    team_id = db.Column(db.Integer, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    player_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    team_id = db.Column(BigInteger, nullable=False)
     contract_id = db.Column(db.Integer, ForeignKey('contract.id'))
     season = db.Column(db.Integer, nullable=False, default=db.func.strftime('%Y', 'now'))
     created_at = db.Column(db.DateTime, nullable=True, default=db.func.now())
@@ -48,17 +49,17 @@ class AmnestyPlayer(db.Model):
 # Amnesty Team Model
 class AmnestyTeam(db.Model):
     __tablename__ = 'amnesty_team'
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    team_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    team_id = db.Column(BigInteger, primary_key=True, nullable=False)
     amnesty_left = db.Column(db.Integer, nullable=True)
 
 # RFA Player Model
 class RfaPlayer(db.Model):
     __tablename__ = 'rfa_players'
     
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    player_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    team_id = db.Column(db.Integer, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    player_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    team_id = db.Column(BigInteger, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
     contract_id = db.Column(db.Integer, ForeignKey('contract.id'))
     season = db.Column(db.Integer, nullable=False, default=db.func.strftime('%Y', 'now'))
@@ -70,17 +71,17 @@ class RfaPlayer(db.Model):
 # RFA Team Model
 class RfaTeam(db.Model):
     __tablename__ = 'rfa_teams'
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    team_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    team_id = db.Column(BigInteger, primary_key=True, nullable=False)
     rfa_left = db.Column(db.Integer, nullable=False)
 
 # Extension Player Model
 class ExtensionPlayer(db.Model):
     __tablename__ = 'extension_players'
     
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    player_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    team_id = db.Column(db.Integer, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    player_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    team_id = db.Column(BigInteger, nullable=False)
     contract_length = db.Column(db.Integer, nullable=False)
     contract_id = db.Column(db.Integer, ForeignKey('contract.id'))
     season = db.Column(db.Integer, nullable=False, default=db.func.strftime('%Y', 'now'))
@@ -92,17 +93,17 @@ class ExtensionPlayer(db.Model):
 # Extension Team Model
 class ExtensionTeam(db.Model):
     __tablename__ = 'extension_team'
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
-    team_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
+    team_id = db.Column(BigInteger, primary_key=True, nullable=False)
     extension_left = db.Column(db.Integer, nullable=False)
 
 class CommissionerActionLog(db.Model):
     __tablename__ = 'commissioner_action_log'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    league_id = db.Column(db.Integer, nullable=False)
-    team_id = db.Column(db.Integer, nullable=False)
-    player_id = db.Column(db.Integer, nullable=False)
+    league_id = db.Column(BigInteger, nullable=False)
+    team_id = db.Column(BigInteger, nullable=False)
+    player_id = db.Column(BigInteger, nullable=False)
     action_type = db.Column(db.String, nullable=False)  # contract, rfa, amnesty, extension
     operation = db.Column(db.String, nullable=False)  # add or remove
     contract_length = db.Column(db.Integer, nullable=True)
@@ -112,7 +113,7 @@ class CommissionerActionLog(db.Model):
 
 class LeagueInfo(db.Model):
     __tablename__ = 'league_info'
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
     is_auction = db.Column(db.Integer, nullable=False)
     is_keeper = db.Column(db.Integer, nullable=False)
     money_per_team = db.Column(db.Integer, nullable=True)
@@ -130,7 +131,7 @@ class LeagueInfo(db.Model):
 class LocalPlayer(db.Model):
     __tablename__ = 'local_players'
     
-    player_id = db.Column(db.Integer, primary_key=True)
+    player_id = db.Column(BigInteger, primary_key=True)
     first_name = db.Column(db.String)
     last_name = db.Column(db.String)
     position = db.Column(db.String)
@@ -139,7 +140,7 @@ class LocalPlayer(db.Model):
 class PlayerImage(db.Model):
     __tablename__ = 'player_images'
 
-    player_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    player_id = db.Column(BigInteger, primary_key=True, nullable=False)
     image_base64 = db.Column(db.Text, nullable=False)
     content_type = db.Column(db.String, nullable=False, default="image/jpeg")
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
@@ -151,8 +152,8 @@ class LeagueChain(db.Model):
     __tablename__ = 'league_chain'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    original_league_id = db.Column(db.Integer, nullable=False, unique=True)  # First league in chain
-    current_league_id = db.Column(db.Integer, nullable=False)  # Most recent league ID
+    original_league_id = db.Column(BigInteger, nullable=False, unique=True)  # First league in chain
+    current_league_id = db.Column(BigInteger, nullable=False)  # Most recent league ID
     league_ids = db.Column(db.String, nullable=False)  # JSON list of all league IDs in order
     last_updated = db.Column(db.DateTime, default=db.func.now())
     
@@ -172,7 +173,7 @@ class SleeperApiCache(db.Model):
 class SleeperLeague(db.Model):
     __tablename__ = 'sleeper_league'
 
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
     data_json = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 
@@ -180,7 +181,7 @@ class SleeperLeague(db.Model):
 class SleeperRosters(db.Model):
     __tablename__ = 'sleeper_rosters'
 
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
     data_json = db.Column(db.Text, nullable=False)  # list of rosters
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 
@@ -188,7 +189,7 @@ class SleeperRosters(db.Model):
 class SleeperUsers(db.Model):
     __tablename__ = 'sleeper_users'
 
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
     data_json = db.Column(db.Text, nullable=False)  # list of users
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 
@@ -196,7 +197,7 @@ class SleeperUsers(db.Model):
 class SleeperDrafts(db.Model):
     __tablename__ = 'sleeper_drafts'
 
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
     data_json = db.Column(db.Text, nullable=False)  # list of drafts
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 
@@ -204,7 +205,7 @@ class SleeperDrafts(db.Model):
 class SleeperDraftPicks(db.Model):
     __tablename__ = 'sleeper_draft_picks'
 
-    draft_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    draft_id = db.Column(BigInteger, primary_key=True, nullable=False)
     data_json = db.Column(db.Text, nullable=False)  # list of picks
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 
@@ -212,7 +213,7 @@ class SleeperDraftPicks(db.Model):
 class SleeperTransactions(db.Model):
     __tablename__ = 'sleeper_transactions'
 
-    league_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    league_id = db.Column(BigInteger, primary_key=True, nullable=False)
     round_num = db.Column(db.Integer, primary_key=True, nullable=False)
     data_json = db.Column(db.Text, nullable=False)  # list of transactions
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
