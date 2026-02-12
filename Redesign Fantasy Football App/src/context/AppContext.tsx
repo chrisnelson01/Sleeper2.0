@@ -55,10 +55,18 @@ type AppContextValue = {
   isRefreshing: boolean;
   error: string | null;
   setUsername: (username: string) => Promise<void>;
-  selectLeague: (leagueId: string) => Promise<void>;
+  selectLeague: (leagueId: string) => Promise<{
+    team_info?: TeamInfo[];
+    league_info?: LeagueInfo | null;
+    current_season?: number | null;
+  } | null>;
   logout: () => void;
-  updateLeague: (updates: Record<string, any>) => Promise<void>;
-  refreshLeagueData: () => Promise<void>;
+  updateLeague: (updates: Record<string, any>) => Promise<LeagueInfo | null>;
+  refreshLeagueData: () => Promise<{
+    team_info?: TeamInfo[];
+    league_info?: LeagueInfo | null;
+    current_season?: number | null;
+  } | null>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -85,6 +93,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setRostersData(response?.team_info || []);
     setLeagueInfo(response?.league_info || null);
     setCurrentSeason(response?.current_season || null);
+    return response || null;
   }, []);
 
   const initialize = useCallback(async () => {
@@ -151,15 +160,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const selectLeague = useCallback(
     async (leagueId: string) => {
-      if (!userId) return;
+      if (!userId) return null;
       setIsLoading(true);
       setError(null);
       try {
         setSelectedLeagueId(leagueId);
         localStorage.setItem("selectedLeagueId", leagueId);
-        await fetchRosters(leagueId, userId);
+        return await fetchRosters(leagueId, userId);
       } catch (err: any) {
-        setError(err?.message || "Failed to load league");
+        const message = err?.message || "Failed to load league";
+        setError(message);
+        throw err;
       } finally {
         setIsLoading(false);
       }
@@ -195,26 +206,35 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       selectLeague,
       logout,
       refreshLeagueData: async () => {
-        if (!selectedLeagueId || !userId) return;
+        if (!selectedLeagueId || !userId) return null;
         setIsRefreshing(true);
         setError(null);
         try {
-          await fetchRosters(selectedLeagueId, userId);
+          const response = await api.getRostersData(selectedLeagueId, userId);
+          setRostersData(response?.team_info || []);
+          setLeagueInfo(response?.league_info || null);
+          setCurrentSeason(response?.current_season || null);
+          return response || null;
         } catch (err: any) {
-          setError(err?.message || "Failed to refresh league");
+          const message = err?.message || "Failed to refresh league";
+          setError(message);
+          throw err;
         } finally {
           setIsRefreshing(false);
         }
       },
       updateLeague: async (updates: Record<string, any>) => {
-        if (!selectedLeagueId) return;
+        if (!selectedLeagueId) return null;
         setIsRefreshing(true);
         setError(null);
         try {
           const updated = await api.updateLeagueInfo(selectedLeagueId, updates);
           setLeagueInfo(updated || null);
+          return updated || null;
         } catch (err: any) {
-          setError(err?.message || "Failed to update league");
+          const message = err?.message || "Failed to update league";
+          setError(message);
+          throw err;
         } finally {
           setIsRefreshing(false);
         }

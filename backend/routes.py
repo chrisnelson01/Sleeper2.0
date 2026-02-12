@@ -136,6 +136,53 @@ def get_auth_me():
         },
     }), 200
 
+
+@api.route('/league-config-status', methods=['POST'])
+@cross_origin()
+@require_auth
+def get_league_config_status():
+    """Return setup status for a list of league IDs."""
+    try:
+        payload = request.get_json() or {}
+        league_ids_raw = payload.get("league_ids") or []
+        if not isinstance(league_ids_raw, list):
+            return jsonify({"status": "error", "message": "league_ids must be a list", "data": None}), 400
+
+        results: Dict[str, Dict] = {}
+        # Cap list size to keep this endpoint predictable.
+        for raw_id in league_ids_raw[:100]:
+            league_id_str = str(raw_id)
+            configured = False
+            source_league_id = None
+            chain_ids: List[int] = []
+
+            try:
+                chain_ids = get_league_chain_ids(int(raw_id)) or [int(raw_id)]
+            except Exception:
+                try:
+                    chain_ids = [int(raw_id)]
+                except Exception:
+                    chain_ids = []
+
+            for chain_id in chain_ids:
+                info = LeagueInfo.query.filter_by(league_id=chain_id).first()
+                if not info:
+                    continue
+                if int(info.money_per_team or 0) > 0 and bool(info.creation_date):
+                    configured = True
+                    source_league_id = str(chain_id)
+                    break
+
+            results[league_id_str] = {
+                "configured": configured,
+                "source_league_id": source_league_id,
+            }
+
+        return jsonify({"status": "success", "data": results}), 200
+    except Exception as e:
+        logger.error(f"Error checking league config status: {str(e)}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e), "data": None}), 500
+
 @api.route('/rosters/<league_id>/<user_id>', methods=['GET'])
 @cross_origin()
 @require_auth

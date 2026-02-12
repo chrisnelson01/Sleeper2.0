@@ -13,20 +13,28 @@ interface League {
 
 interface LeagueSelectorProps {
   leagues: League[];
-  onSelectLeague: (leagueId: string) => void;
+  leagueConfigStatus?: Record<string, { configured: boolean }>;
+  statusLoading?: boolean;
+  onSelectLeague: (leagueId: string) => Promise<void>;
 }
 
-export function LeagueSelector({ leagues, onSelectLeague }: LeagueSelectorProps) {
+export function LeagueSelector({
+  leagues,
+  leagueConfigStatus = {},
+  statusLoading = false,
+  onSelectLeague,
+}: LeagueSelectorProps) {
   const [selectedLeague, setSelectedLeague] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSelect = async (leagueId: string) => {
     setSelectedLeague(leagueId);
     setLoading(true);
-    // Simulate loading before entering league
-    setTimeout(() => {
-      onSelectLeague(leagueId);
-    }, 1000);
+    try {
+      await onSelectLeague(leagueId);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -56,6 +64,9 @@ export function LeagueSelector({ leagues, onSelectLeague }: LeagueSelectorProps)
           <p className="text-sm text-muted-foreground">
             Choose a league to manage
           </p>
+          {statusLoading && (
+            <p className="text-xs text-muted-foreground mt-2">Checking setup status...</p>
+          )}
         </div>
 
         {/* Leagues List */}
@@ -83,6 +94,17 @@ export function LeagueSelector({ leagues, onSelectLeague }: LeagueSelectorProps)
                   <p className="text-xs text-muted-foreground">
                     {league.season} - {league.teams} Teams
                   </p>
+                  {!statusLoading && leagueConfigStatus[league.id] && (
+                    <p
+                      className={`text-[11px] mt-1 ${
+                        leagueConfigStatus[league.id].configured
+                          ? "text-emerald-300"
+                          : "text-amber-300"
+                      }`}
+                    >
+                      {leagueConfigStatus[league.id].configured ? "Configured" : "Setup Required"}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {loading && selectedLeague === league.id ? (

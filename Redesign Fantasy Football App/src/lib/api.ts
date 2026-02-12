@@ -77,6 +77,15 @@ export const api = {
     return handleResponse(response);
   },
 
+  getLeagueConfigStatus: async (leagueIds: string[]) => {
+    const response = await authFetch(`${API_BASE_URL}/league-config-status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ league_ids: leagueIds }),
+    });
+    return handleResponse(response);
+  },
+
   getAllContracts: async (leagueId: string) => {
     const response = await authFetch(`${API_BASE_URL}/all-contracts/${leagueId}`);
     return handleResponse(response);

@@ -44,12 +44,19 @@ type UserData = {
   selectedLeague?: string;
 };
 
+type LeagueConfigStatusMap = Record<string, { configured: boolean; source_league_id?: string | null }>;
+
+const isConfiguredLeagueInfo = (info: any) =>
+  Boolean(info?.league_id && Number(info?.money_per_team || 0) > 0 && info?.creation_date);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("my-team");
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>("login");
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isAuthResolving, setIsAuthResolving] = useState(false);
+  const [leagueConfigStatus, setLeagueConfigStatus] = useState<LeagueConfigStatusMap>({});
+  const [isLeagueStatusLoading, setIsLeagueStatusLoading] = useState(false);
   const {
     isLoading,
     userId,
@@ -130,11 +137,7 @@ export default function App() {
     if (!leagueInfo) return false;
     // A league is considered configured only when persisted league setup fields exist.
     // Some API responses include commissioner metadata only; that should not unlock the app.
-    return Boolean(
-      leagueInfo.league_id &&
-      Number(leagueInfo.money_per_team || 0) > 0 &&
-      leagueInfo.creation_date
-    );
+    return isConfiguredLeagueInfo(leagueInfo);
   }, [leagueInfo]);
 
   const commissionerName = useMemo(() => {
@@ -143,8 +146,13 @@ export default function App() {
     return commissionerTeam?.display_name || "Commissioner";
   }, [leagueInfo, rostersData]);
 
+  const hasLeagueDataHydrated = useMemo(() => {
+    if (!selectedLeagueId) return false;
+    return Boolean(leagueInfo) || rostersData.length > 0;
+  }, [selectedLeagueId, leagueInfo, rostersData.length]);
+
   useEffect(() => {
-    if (isLoading || !selectedLeagueId || !userId) return;
+    if (isLoading || !selectedLeagueId || !userId || !hasLeagueDataHydrated) return;
     if (authStep === "login" || authStep === "email-verification" || authStep === "link-username") {
       return;
     }
@@ -161,6 +169,7 @@ export default function App() {
     isLoading,
     isLeagueCommissioner,
     isLeagueConfigured,
+    hasLeagueDataHydrated,
     selectedLeagueId,
     userId,
   ]);
@@ -182,6 +191,35 @@ export default function App() {
     () => leagueOptions.find((league) => league.id === String(selectedLeagueId)),
     [leagueOptions, selectedLeagueId]
   );
+
+  useEffect(() => {
+    if (authStep !== "select-league" || !leagueOptions.length) return;
+
+    let isMounted = true;
+    const run = async () => {
+      setIsLeagueStatusLoading(true);
+      try {
+        const ids = leagueOptions.map((league) => league.id);
+        const status = await api.getLeagueConfigStatus(ids);
+        if (isMounted) {
+          setLeagueConfigStatus(status || {});
+        }
+      } catch (_err) {
+        if (isMounted) {
+          setLeagueConfigStatus({});
+        }
+      } finally {
+        if (isMounted) {
+          setIsLeagueStatusLoading(false);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      isMounted = false;
+    };
+  }, [authStep, leagueOptions]);
 
   const handleEmailAuth = async (email: string, _password: string, isSignUp: boolean) => {
     if (isSignUp) {
@@ -250,13 +288,39 @@ export default function App() {
   };
 
   const handleSelectLeague = async (leagueId: string) => {
-    await selectLeague(leagueId);
+    const response = await selectLeague(leagueId);
+    const precheckedConfigured = Boolean(leagueConfigStatus[leagueId]?.configured);
+    const responseConfigured = isConfiguredLeagueInfo(response?.league_info);
+
+    if (precheckedConfigured || responseConfigured) {
+      setAuthStep("authenticated");
+      setActiveTab("my-team");
+      return;
+    }
+
+    const userRoster = (response?.team_info || []).find(
+      (team: any) => String(team?.owner_id) === String(userId)
+    );
+    setAuthStep(Boolean(userRoster?.is_owner) ? "league-setup" : "waiting-for-setup");
   };
 
   const handleLeagueSetupComplete = async (settings: Record<string, number>) => {
     await updateLeague(settings);
-    await refreshLeagueData();
-    setAuthStep("authenticated");
+    const refreshed = await refreshLeagueData();
+    const refreshedLeagueInfo = refreshed?.league_info;
+    const configured = Boolean(
+      refreshedLeagueInfo?.league_id &&
+      Number(refreshedLeagueInfo?.money_per_team || 0) > 0 &&
+      refreshedLeagueInfo?.creation_date
+    );
+
+    if (configured) {
+      setAuthStep("authenticated");
+      setActiveTab("my-team");
+      return;
+    }
+
+    throw new Error("League setup did not persist. Please try again.");
   };
 
   const handleCheckAgain = async () => {
@@ -295,16 +359,27 @@ export default function App() {
   }
 
   if (authStep === "select-league" && !selectedLeagueId) {
-    return <LeagueSelector leagues={leagueOptions} onSelectLeague={handleSelectLeague} />;
+    return (
+      <LeagueSelector
+        leagues={leagueOptions}
+        leagueConfigStatus={leagueConfigStatus}
+        statusLoading={isLeagueStatusLoading}
+        onSelectLeague={handleSelectLeague}
+      />
+    );
   }
 
-  if (!isLeagueConfigured && selectedLeagueId && isLeagueCommissioner) {
+  if (selectedLeagueId && !hasLeagueDataHydrated) {
+    return <LoadingScreen />;
+  }
+
+  if (!isLeagueConfigured && selectedLeagueId && hasLeagueDataHydrated && isLeagueCommissioner) {
     return (
       <LeagueSetup leagueName={selectedLeague?.name || "League"} onComplete={handleLeagueSetupComplete} />
     );
   }
 
-  if (!isLeagueConfigured && selectedLeagueId && !isLeagueCommissioner) {
+  if (!isLeagueConfigured && selectedLeagueId && hasLeagueDataHydrated && !isLeagueCommissioner) {
     return (
       <WaitingForSetup
         leagueName={selectedLeague?.name || "League"}
