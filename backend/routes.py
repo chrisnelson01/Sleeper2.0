@@ -3,12 +3,13 @@ import time
 import base64
 from datetime import datetime
 import requests
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, jsonify, request, Response, g
 from flask_cors import cross_origin
 from typing import Dict, List, Tuple
 
 from .sleeper_service import sleeper_service
 from .roster_service import RosterService
+from .auth import require_auth, maybe_set_auth_context
 from .utils import (
     get_rosters_response,
     get_all_contracts_in_chain,
@@ -19,12 +20,17 @@ from .utils import (
 from .models import (
     Contract, LocalPlayer, AmnestyPlayer, RfaPlayer, 
     ExtensionPlayer, AmnestyTeam, RfaTeam, ExtensionTeam, PlayerImage, LeagueInfo,
-    CommissionerActionLog
+    CommissionerActionLog, AuthUser
 )
 from .extensions import db
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 logger = logging.getLogger(__name__)
+
+
+@api.before_request
+def _attach_auth_context():
+    maybe_set_auth_context()
 
 def _get_team_player_from_rosters(league_id: int, team_id: int, player_id: int):
     """Return (team, player) from current rosters if player is on the team."""
@@ -59,8 +65,80 @@ def handle_error(error):
         "data": None
     }), 500
 
+
+@api.route('/auth/link-sleeper', methods=['POST'])
+@cross_origin()
+@require_auth
+def link_sleeper_username():
+    """Link Firebase user to Sleeper username."""
+    try:
+        payload = request.get_json() or {}
+        username = (payload.get("username") or "").strip()
+        if not username:
+            return jsonify({"status": "error", "message": "username is required", "data": None}), 400
+
+        sleeper_user = sleeper_service.fetch(f"{sleeper_service.BASE_URL}/user/{username}") or {}
+        sleeper_user_id = sleeper_user.get("user_id")
+        if not sleeper_user_id:
+            return jsonify({"status": "error", "message": "Sleeper user not found", "data": None}), 404
+
+        firebase_uid = getattr(g, "firebase_uid", None)
+        firebase_email = getattr(g, "firebase_email", None)
+        if not firebase_uid:
+            return jsonify({"status": "error", "message": "Unauthorized", "data": None}), 401
+
+        record = AuthUser.query.filter_by(firebase_uid=firebase_uid).first()
+        if not record:
+            record = AuthUser(
+                firebase_uid=firebase_uid,
+                email=firebase_email,
+                sleeper_username=username,
+                sleeper_user_id=str(sleeper_user_id),
+            )
+            db.session.add(record)
+        else:
+            record.email = firebase_email or record.email
+            record.sleeper_username = username
+            record.sleeper_user_id = str(sleeper_user_id)
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "firebase_uid": firebase_uid,
+                "email": firebase_email,
+                "sleeper_username": username,
+                "sleeper_user_id": str(sleeper_user_id),
+            },
+        }), 200
+    except Exception as e:
+        logger.error(f"Error linking Sleeper username: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e), "data": None}), 500
+
+
+@api.route('/auth/me', methods=['GET'])
+@cross_origin()
+@require_auth
+def get_auth_me():
+    firebase_uid = getattr(g, "firebase_uid", None)
+    if not firebase_uid:
+        return jsonify({"status": "error", "message": "Unauthorized", "data": None}), 401
+    record = AuthUser.query.filter_by(firebase_uid=firebase_uid).first()
+    return jsonify({
+        "status": "success",
+        "data": {
+            "firebase_uid": firebase_uid,
+            "email": getattr(g, "firebase_email", None),
+            "sleeper_username": record.sleeper_username if record else None,
+            "sleeper_user_id": record.sleeper_user_id if record else None,
+        },
+    }), 200
+
 @api.route('/rosters/<league_id>/<user_id>', methods=['GET'])
 @cross_origin()
+@require_auth
 def get_rosters_data(league_id: str, user_id: str):
     """Get complete roster and league data - optimized for speed"""
     try:
@@ -85,6 +163,7 @@ def get_rosters_data(league_id: str, user_id: str):
 
 @api.route('/rosters/league/<league_id>', methods=['GET'])
 @cross_origin()
+@require_auth
 def get_all_league_rosters(league_id: str):
     """Return processed rosters for an entire league (all teams)."""
     try:
@@ -109,6 +188,7 @@ def get_all_league_rosters(league_id: str):
 
 @api.route('/rosters/league/<league_id>/user/<user_id>', methods=['GET'])
 @cross_origin()
+@require_auth
 def get_selected_roster(league_id: str, user_id: str):
     """Return only the processed roster for the selected user in a league."""
     try:
@@ -138,6 +218,7 @@ def get_selected_roster(league_id: str, user_id: str):
 
 @api.route('/contracts/<league_id>', methods=['GET'])
 @cross_origin()
+@require_auth
 def get_contracts(league_id: str):
     """Get league contracts"""
     contracts = Contract.query.filter_by(league_id=int(league_id)).all()
@@ -156,6 +237,7 @@ def get_contracts(league_id: str):
 
 @api.route('/contracts', methods=['POST'])
 @cross_origin()
+@require_auth
 def add_contract():
     """Add a new contract for a player if no active contract exists."""
     try:
@@ -275,6 +357,7 @@ def add_contract():
 
 @api.route('/activity/<league_id>', methods=['GET'])
 @cross_origin()
+@require_auth
 def get_league_activity(league_id: str):
     """Return a combined activity feed for a league."""
     try:
@@ -512,6 +595,7 @@ def get_league_activity(league_id: str):
 
 @api.route('/amnesty', methods=['POST'])
 @cross_origin()
+@require_auth
 def add_amnesty():
     """Use an amnesty on a player if available and contract exists."""
     try:
@@ -617,6 +701,7 @@ def add_amnesty():
 
 @api.route('/rfa', methods=['POST'])
 @cross_origin()
+@require_auth
 def add_rfa():
     """Tag a player as restricted free agent if available and contract exists."""
     try:
@@ -723,6 +808,7 @@ def add_rfa():
 
 @api.route('/extension', methods=['POST'])
 @cross_origin()
+@require_auth
 def add_extension():
     """Extend a player's contract if available and contract exists."""
     try:
@@ -829,6 +915,7 @@ def add_extension():
 
 @api.route('/commissioner/action', methods=['POST'])
 @cross_origin()
+@require_auth
 def commissioner_add_action():
     """Commissioner add contract-related actions for a specific team/player."""
     try:
@@ -1086,6 +1173,7 @@ def commissioner_add_action():
 
 @api.route('/commissioner/action/remove', methods=['POST'])
 @cross_origin()
+@require_auth
 def commissioner_remove_action():
     """Commissioner remove contract-related actions for a specific team/player."""
     try:
@@ -1281,6 +1369,7 @@ def health_check():
 
 @api.route('/league/<league_id>', methods=['PUT'])
 @cross_origin()
+@require_auth
 def update_league_info(league_id: str):
     """Update editable league settings."""
     try:
@@ -1337,6 +1426,10 @@ def update_league_info(league_id: str):
             except Exception:
                 setattr(league_info, key, value)
 
+        # Mark setup completion once real settings are persisted.
+        if not league_info.creation_date:
+            league_info.creation_date = datetime.utcnow().date().isoformat()
+
         db.session.commit()
 
         try:
@@ -1361,6 +1454,7 @@ def update_league_info(league_id: str):
 
 @api.route('/all-contracts/<league_id>', methods=['GET'])
 @cross_origin()
+@require_auth
 def get_all_contracts(league_id: str):
     """
     Get all contracts (current and historical) for a league across all seasons.
