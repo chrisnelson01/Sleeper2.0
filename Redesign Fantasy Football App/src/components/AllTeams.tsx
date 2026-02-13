@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Users, Truck } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Badge } from "./ui/badge";
 import { useAppContext } from "../context/AppContext";
@@ -9,6 +9,7 @@ interface Player {
   name: string;
   position: string;
   salary: number;
+  isTaxi?: boolean;
 }
 
 interface Team {
@@ -39,6 +40,7 @@ export function AllTeams() {
         name: `${player.first_name} ${player.last_name}`,
         position: player.position,
         salary: Number(player.amount || 0),
+        isTaxi: Boolean((player as { is_taxi?: boolean }).is_taxi),
       }));
       const totalCap = Number(team.total_amount || 0);
       return {
@@ -328,9 +330,14 @@ function RosterPlayerCard({ player }: RosterPlayerCardProps) {
           {player.name}
         </span>
       </div>
-      <span className="text-sm font-bold text-accent flex-shrink-0 ml-2">
-        ${player.salary.toLocaleString()}
-      </span>
+      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+        {player.isTaxi && (
+          <Truck size={11} strokeWidth={1.8} className="text-yellow-400" />
+        )}
+        <span className="text-sm font-bold text-accent">
+          ${player.salary.toLocaleString()}
+        </span>
+      </div>
     </div>
   );
 }

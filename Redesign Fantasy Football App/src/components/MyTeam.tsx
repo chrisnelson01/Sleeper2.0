@@ -8,6 +8,7 @@ import {
   ArrowDown,
   SlidersHorizontal,
   X,
+  Truck,
 } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { useMemo, useState } from "react";
@@ -25,6 +26,7 @@ interface Player {
   capHit: number;
   status: "active" | "injured" | "amnestied";
   imageUrl?: string;
+  isTaxi?: boolean;
 }
 
 type SortOption = "name" | "salary" | "capHit" | "years" | "position";
@@ -79,6 +81,7 @@ export function MyTeam({ onActionSaved }: MyTeamProps) {
       years: typeof overrideYears === "number" ? overrideYears : baseYears,
       capHit: Number(player.amount || 0),
       status: "active",
+      isTaxi: Boolean((player as { is_taxi?: boolean }).is_taxi),
       imageUrl: player.player_id
         ? `${API_BASE_URL}/player-image/${player.player_id}`
         : undefined,
@@ -454,6 +457,9 @@ function PlayerCard({
                   >
                     {player.position}
                   </Badge>
+                  {player.isTaxi && (
+                    <Truck size={11} strokeWidth={1.8} className="text-yellow-400" />
+                  )}
                   {player.status === "injured" && (
                     <span className="flex items-center gap-1 text-[10px] text-destructive">
                       <AlertCircle className="w-3 h-3" />
